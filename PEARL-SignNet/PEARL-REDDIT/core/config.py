@@ -56,14 +56,15 @@ def set_cfg(cfg):
     cfg.model.hidden_size = 128
     # Number of gnn layers (doesn't include #MLPs)
     cfg.model.num_layers = 4
-    # Number of signnet layers
-    cfg.model.num_layers_sign = 4
+    # Number of PE/PEARL layers
+    cfg.model.num_layers_pe = 4
     # Pooling type for generaating graph/subgraph embedding from node embeddings 
     cfg.model.pool = 'add'
 
     cfg.model.hidden_size_3d = 128
     cfg.model.class_num = None
     cfg.model.n_out=1
+    cfg.num_samples = 30
 
     return cfg
     

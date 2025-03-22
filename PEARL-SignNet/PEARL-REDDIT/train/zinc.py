@@ -3,9 +3,9 @@ os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]='1'
 import torch
 from core.config import cfg, update_cfg
-from core.train import run, run_EVAL
+from core.train import run
 from core.model import GNN
-from core.sign_net import SignNetGNN
+from core.sign_net import PE_GNN
 from core.transform import EVDTransform
 from torch.utils.data import random_split
 from sklearn.model_selection import StratifiedKFold
@@ -51,28 +51,16 @@ def create_dataset(cfg, fold_idx):
         seed = 42  # Set your seed
         train_dataset, test_dataset = stratified_split(dataset, seed, fold_idx)
         val_dataset = None
-    #train_num_distincts = [check_distinct(data) for data in train_dataset]
-    #val_num_distincts = [check_distinct(data) for data in val_dataset]
-    #test_num_distincts = [check_distinct(data) for data in test_dataset]
-    #print(f"Percentage of graphs with distinct eigenvalues (train): {100*sum(train_num_distincts)/len(train_num_distincts)}%")
-    #print(f"Percentage of graphs with distinct eigenvalues (vali): {100*sum(val_num_distincts)/len(val_num_distincts)}%")
-    #print(f"Percentage of graphs with distinct eigenvalues (test): {100*sum(test_num_distincts)/len(test_num_distincts)}%")
-
     return train_dataset, val_dataset, test_dataset
 
 def create_model(cfg):
-    if cfg.model.gnn_type == 'SignNet':
-        model = SignNetGNN(None, None,
+    if cfg.model.gnn_type == 'PEARL':
+        model = PE_GNN(None, None,
                            n_hid_3d=cfg.model.hidden_size_3d, 
                            n_hid = cfg.model.hidden_size,
                            n_out=cfg.model.n_out, 
-                           nl_signnet=cfg.model.num_layers_sign, 
+                           nl_pe_gnn=cfg.model.num_layers_pe, 
                            nl_gnn=cfg.model.num_layers)
-        '''model = SignNetGNN(None, None,
-                           n_hid=cfg.model.hidden_size, 
-                           n_out=cfg.model.n_out, 
-                           nl_signnet=cfg.model.num_layers_sign, 
-                           nl_gnn=cfg.model.num_layers)'''
     else:
         model = GNN(None, None, 
                     nhid=cfg.model.hidden_size, 

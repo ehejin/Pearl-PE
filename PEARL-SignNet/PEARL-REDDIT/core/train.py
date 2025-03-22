@@ -8,8 +8,6 @@ import matplotlib.pyplot as plt
 import csv
 
 def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=80):
-    # set num threads
-    # torch.set_num_threads(cfg.num_workers)
 
     # 0. create logger and writer
     set_random_seed(seed=42)
@@ -32,15 +30,12 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
             name=cfg.run_name,         # Optional: Give your run a name
             config=cfg
         )
-    for run in [1]: #, 2, 3, 4, 5, 6, 7, 8, 9, 10]:#[1, 4, 5, 6, 7, 8, 9, 10]:
+    for run in range(1, 11): 
         if run != 1 and cfg.dataset != 'ZINC':
             train_dataset, val_dataset, test_dataset = create_dataset(cfg, run-1)
-        # 3. create model and opt
         model = create_model(cfg).to(cfg.device)
-        # print(f"Number of parameters: {count_parameters(model)}")
         model.reset_parameters()
-        print("TOTAL PARAMS", sum(p.numel() for p in model.parameters()))
-        print(model)
+        print("Total Parameters:  ", sum(p.numel() for p in model.parameters()))
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr, weight_decay=cfg.train.wd)
         scheduler = StepLR(optimizer, step_size=cfg.train.lr_patience, gamma=cfg.train.lr_decay)
 
@@ -55,11 +50,8 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
             scheduler.step()
             memory_allocated = torch.cuda.max_memory_allocated(cfg.device) // (1024 ** 2)
             memory_reserved = torch.cuda.max_memory_reserved(cfg.device) // (1024 ** 2)
-            # print(f"---{test(train_loader, model, evaluator=evaluator, device=cfg.device) }")
-
             model.eval()
             if cfg.dataset == 'ZINC':
-                print('NOT RUNING YOUR REDDIT SAMPLES')
                 val_perf = test(val_loader, model, evaluator=evaluator, device=cfg.device)
                 if val_perf > best_val_perf:
                     best_val_perf = val_perf
@@ -102,9 +94,6 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
     vali_perf = torch.tensor(vali_perfs)
     logger.info("-"*50)
     logger.info(config_string)
-    # logger.info(cfg)
-    #if cfg.dataset != 'ZINC':
-    #    wandb.run.summary["mean_test"] = run_tests.mean()
     logger.info(f'Final Vali: {vali_perf.mean():.4f} ± {vali_perf.std():.4f}, Final Test: {test_perf.mean():.4f} ± {test_perf.std():.4f},'
                 f'Seconds/epoch: {time_average_epoch/cfg.train.epochs}, Memory Peak: {memory_allocated} MB allocated, {memory_reserved} MB reserved.')
     print(f'Final Vali: {vali_perf.mean():.4f} ± {vali_perf.std():.4f}, Final Test: {test_perf.mean():.4f} ± {test_perf.std():.4f},'
@@ -113,8 +102,6 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
 
 
 def run_k_fold(cfg, create_dataset, create_model, train, test, evaluator=None, k=10):
-    # if cfg.seed is not None:
-
     writer, logger, config_string = config_logger(cfg)
     dataset, transform, transform_eval = create_dataset(cfg)
 
@@ -246,10 +233,7 @@ def k_fold(dataset, folds=10):
 
     train_indices, test_indices = [], []
     ys = dataset.data.y
-    # ys = [graph.y.item() for graph in dataset]
     for train, test in skf.split(torch.zeros(len(dataset)), ys):
         train_indices.append(torch.from_numpy(train).to(torch.long))
         test_indices.append(torch.from_numpy(test).to(torch.long))
-        # train_indices.append(train)
-        # test_indices.append(test)
     return train_indices, test_indices

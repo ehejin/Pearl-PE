@@ -11,7 +11,6 @@ class GNN(nn.Module):
     def __init__(self, nfeat_node, nfeat_edge, nhid, nout, nlayer, gnn_type, dropout=0, pooling='add', bn=BN, dos_bins=0, res=True):
         super().__init__()
         self.input_encoder = torch.nn.Embedding(500, 128) #DiscreteEncoder(nhid-dos_bins) if nfeat_node is None else MLP(nfeat_node, nhid-dos_bins, 1)
-        #self.edge_encoders = nn.ModuleList([DiscreteEncoder(nhid) if nfeat_edge is None else MLP(nfeat_edge, nhid, 1) for _ in range(nlayer)])
         self.convs = nn.ModuleList([getattr(gnn_wrapper, gnn_type)(nhid, nhid, bias=not bn) for _ in range(nlayer)]) # set bias=False for BN
         self.norms = nn.ModuleList([nn.BatchNorm1d(nhid) if bn else Identity() for _ in range(nlayer)])
         self.output_encoder = MLP(nhid, nout, nlayer=2, with_final_activation=False, with_norm=False if pooling=='mean' else True)
@@ -39,18 +38,13 @@ class GNN(nn.Module):
         for conv, norm in zip(self.convs, self.norms):
             conv.reset_parameters()
             norm.reset_parameters()
-        '''for edge_encoder, conv, norm in zip(self.edge_encoders, self.convs, self.norms):
-            edge_encoder.reset_parameters()
-            conv.reset_parameters()
-            norm.reset_parameters()'''
      
     def forward(self, data, additional_x=None):
-        x = self.input_encoder(data.x.squeeze()) #data.x.squeeze()
+        x = self.input_encoder(data.x.squeeze()) 
 
         # for PDOS 
         if self.dos_bins > 0:
             x = torch.cat([x, data.pdos], dim=-1)
-            # x += self.ldos_encoder(data.pdos)
         if additional_x is not None:
             x = self.linear(torch.cat([x, additional_x], dim=-1))
 
@@ -59,9 +53,7 @@ class GNN(nn.Module):
             ori_edge_attr = data.edge_index.new_zeros(data.edge_index.size(-1))
 
         previous_x = x
-        #for edge_encoder, layer, norm in zip(self.edge_encoders, self.convs, self.norms):
         for layer, norm in zip(self.convs, self.norms):
-            #edge_attr = edge_encoder(ori_edge_attr) 
             x = layer(x, data.edge_index, edge_attr=None)
             x = norm(x)
             x = F.relu(x)
@@ -117,30 +109,7 @@ class GNN1(nn.Module):
             norm.reset_parameters()
      
     def forward(self, data, additional_x=None):
-        '''x = self.input_encoder(data.x.squeeze()) #data.x.squeeze()
-
-        # for PDOS 
-        if self.dos_bins > 0:
-            x = torch.cat([x, data.pdos], dim=-1)
-            # x += self.ldos_encoder(data.pdos)
-        if additional_x is not None:
-            x = self.linear(torch.cat([x, additional_x], dim=-1))'''
         x = additional_x
-
-        '''ori_edge_attr = data.edge_attr 
-        if ori_edge_attr is None:
-            ori_edge_attr = data.edge_index.new_zeros(data.edge_index.size(-1))
-
-        previous_x = x
-        for edge_encoder, layer, norm in zip(self.edge_encoders, self.convs, self.norms):
-            edge_attr = edge_encoder(ori_edge_attr) 
-            x = layer(x, data.edge_index, edge_attr)
-            x = norm(x)
-            x = F.relu(x)
-            x = F.dropout(x, self.dropout, training=self.training)
-            if self.res:
-                x = x+ previous_x 
-                previous_x = x'''
 
         if self.pooling == 'mean':
             graph_size = scatter(torch.ones_like(x[:,0], dtype=torch.int64), data.batch, dim=0, reduce='add')
