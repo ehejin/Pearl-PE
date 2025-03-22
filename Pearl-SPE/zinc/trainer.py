@@ -83,23 +83,6 @@ class Trainer:
         self.cfg = cfg
         cfg.out_dirpath = root(cfg.out_dirpath)
 
-        # Construct model
-#        base_model = GINEBaseModel(
-#            cfg.n_base_layers, cfg.n_edge_types, cfg.node_emb_dims, cfg.base_hidden_dims, self.create_mlp
-#        )
-        # self.model = self.construct_model(cfg, base_model) # final model = pe_method + base_model
-        # self.model = construct_model(cfg, self.create_mlp)
-        # sanity check
-#        self.model = Model(
-#            cfg.n_node_types, cfg.node_emb_dims,
-#            positional_encoding=NoPE(cfg.pe_dims),
-#            base_model=base_model
-#        )
-
-        # self.model.to("cpu" if gpu_id is None else f"cuda:{gpu_id}")
-
-        # Construct data loaders
-        ## dataset preprocessing (before saved in disk) and loading
         processed_suffix = '_pe' + str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
         transform = self.get_projs if cfg.pe_method == 'basis_inv' else self.get_snorm
         pre_transform = self.pre_transform if cfg.pe_method != 'none' else None

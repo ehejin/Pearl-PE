@@ -64,6 +64,7 @@ nesterov: false
 
 # scheduler attributes
 n_warmup_steps: 100
+target_dim: 1
 
 # miscellaneous
 n_epochs: 1400

@@ -15,7 +15,6 @@ from src.gin import GIN
 from src.pna import PNA
 from src.schema import Schema
 from src.gated_gcn import GatedGCNLayer
-from src.pna_mol import PNAConvSimple
 from ogb.graphproppred.mol_encoder import AtomEncoder
 import torch.nn.functional as F
 from torch.nn import ModuleList
@@ -78,7 +77,7 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
             # rho = create_mlp(cfg.pe_dims * cfg.phi_hidden_dims, cfg.pe_dims)
             rho = MLP(cfg.n_psi_layers, 30, cfg.phi_hidden_dims,
                     cfg.pe_dims, use_bn=cfg.mlp_use_bn, activation='relu', dropout_prob=0.0)
-            return Model_R(
+            return Model_PEARL_R(
                 cfg.n_node_types, cfg.node_emb_dims,
                 positional_encoding=SignInvPe(phi=gin, rho=rho),
                 base_model=base_model,
@@ -103,7 +102,7 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
             # rho = create_mlp(cfg.phi_hidden_dims, cfg.pe_dims)
             rho = MLP(cfg.n_psi_layers, cfg.phi_hidden_dims, cfg.phi_hidden_dims, cfg.pe_dims, use_bn=cfg.mlp_use_bn,
                     activation='relu', dropout_prob=0.0)
-            return Model_R(
+            return Model_PEARL_R(
                 cfg.n_node_types, cfg.node_emb_dims,
                 positional_encoding=MaskedSignInvPe(phi=gin, rho=rho),
                 base_model=base_model,
@@ -134,7 +133,7 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
             pe_model = StableExpressivePE(Phi, Psi_list, cfg.BASIS, k=cfg.RAND_k, mlp_nlayers=cfg.RAND_mlp_nlayers, mlp_hid=cfg.RAND_mlp_hid, spe_act=cfg.RAND_act, mlp_out=cfg.RAND_mlp_out)
         elif cfg.pe_method == 'masked_spe':
             pe_model = MaskedStableExpressivePE(Phi, Psi_list)
-        return Model_HIV(
+        return Model_PEARL_W(
             cfg.n_node_types, cfg.node_emb_dims,
             positional_encoding=pe_model,
             base_model=base_model,
@@ -193,8 +192,10 @@ class Model(nn.Module):
         return self.base_model(X_n, batch.edge_index, batch.edge_attr, PE, batch.snorm if "snorm" in batch else None
                                , batch.batch)           # [B]
 
-
-class Model_R(nn.Module):
+'''
+    This is our model for RPEARL PE processing. We pass in only random vectors. 
+'''
+class Model_PEARL_R(nn.Module):
     node_features: nn.Embedding
     positional_encoding: nn.Module
     fc: nn.Linear
@@ -234,8 +235,11 @@ class Model_R(nn.Module):
         return self.base_model(X_n, batch.edge_index, batch.edge_attr, PE, batch.snorm if "snorm" in batch else None
                                , batch.batch) 
     
-
-class Model_W(nn.Module):
+'''
+    This is our model for BPEARL PE processing. We pass in the laplacian along with W, 
+    our basis vectors.
+'''
+class Model_PEARL_W(nn.Module):
     node_features: nn.Embedding
     positional_encoding: nn.Module
     fc: nn.Linear
@@ -300,7 +304,6 @@ class Net(torch.nn.Module):
         return self.mlp(x)
 
 
-
 class GINEBaseModel(nn.Module):
     gine: GINE
 
@@ -312,7 +315,7 @@ class GINEBaseModel(nn.Module):
         print("ARE WE USING GINEBASE BN?:", bn)
         self.gine = GINE(n_layers, n_edge_types, in_dims, hidden_dims, hidden_dims, create_mlp, residual=residual,
                          bn=bn, feature_type=feature_type, pe_emb=pe_emb)
-        self.mlp = create_mlp(hidden_dims, target_dim, LAYERS=3)
+        self.mlp = create_mlp(hidden_dims, target_dim)
         self.pooling = global_mean_pool if pooling == 'mean' else global_add_pool
 
     def forward(

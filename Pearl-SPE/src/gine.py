@@ -63,11 +63,10 @@ class GINELayer(MessagePassing):
         super().__init__(aggr="add", flow="source_to_target", node_dim=0)
         # super(GINELayer, self).__init__(aggr='add')
 
-        '''self.edge_features = nn.Embedding(n_edge_types+1, in_dims) if feature_type == "discrete" else \
-                            nn.Linear(n_edge_types, in_dims)'''
-        self.edge_features = BondEncoder(emb_dim=in_dims)
+        self.edge_features = nn.Embedding(n_edge_types+1, in_dims) if feature_type == "discrete" else \
+                            nn.Linear(n_edge_types, in_dims)
+        #self.edge_features = BondEncoder(emb_dim=in_dims)
         # self.pe_embedding = nn.Linear(1, in_dims)
-        # self.pe_embedding = create_mlp(1, in_dims) # for peg
         self.pe_embedding = create_mlp(pe_emb, in_dims) # for pe-full
         self.eps = torch.nn.Parameter(data=torch.randn(1), requires_grad=True)
         self.mlp = create_mlp(in_dims, out_dims)
