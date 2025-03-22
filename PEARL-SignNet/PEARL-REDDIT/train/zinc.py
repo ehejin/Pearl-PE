@@ -5,7 +5,7 @@ import torch
 from core.config import cfg, update_cfg
 from core.train import run
 from core.model import GNN
-from core.sign_net import PE_GNN
+from core.pe import PE_GNN
 from core.transform import EVDTransform
 from torch.utils.data import random_split
 from sklearn.model_selection import StratifiedKFold

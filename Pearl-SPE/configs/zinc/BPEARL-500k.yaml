@@ -46,8 +46,8 @@ train_batch_size: 128
 val_batch_size: 128
 
 BASIS: true # IF TRUE will run using basis vectors, otherwise will use random samples
-num_samples: 1
-RAND_k: 3
+num_samples: 120
+RAND_k: 7
 #mlp_nlayers: 0
 #mlp_hid: 0
 RAND_mlp_nlayers: 1
@@ -67,7 +67,7 @@ n_warmup_steps: 100
 target_dim: 1
 
 # miscellaneous
-n_epochs: 1400
+n_epochs: 2000
 out_dirpath: out/baseline
 wandb: True
-wandb_run_name: basis_k=3
+wandb_run_name: basis_k=7

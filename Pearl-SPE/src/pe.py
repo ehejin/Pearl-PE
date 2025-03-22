@@ -6,7 +6,6 @@ from torch_geometric.utils import unbatch
 
 from src.gin import GIN
 from src.gine import GINE
-from src.gin_deepsets import GINDeepsets
 from src.ppgn import MaskedPPGN
 from src.deepsets import DeepSets, MaskedDeepSets
 from src.transformer import Transformer
@@ -20,7 +19,6 @@ from torch_geometric.utils import add_self_loops,get_laplacian,remove_self_loops
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch.nn import Parameter
-from src.ign import IGN2to1_mask
 from src.schema import Schema
 from torch_geometric.nn.conv import MessagePassing
 from scipy.special import comb
@@ -64,7 +62,7 @@ def bern_filter(S, W, k):
         w_list.append(out.unsqueeze(-1)) 
     return torch.cat(w_list, dim=-1)
 
-class StableExpressivePE(nn.Module):
+class PEARL_PE(nn.Module):
     phi: nn.Module
     psi_list: nn.ModuleList
     def __init__(self, phi: nn.Module, psi_list: List[nn.Module], BASIS, k=16, mlp_nlayers=1, mlp_hid=16, spe_act='relu', mlp_out=16) -> None:
@@ -75,7 +73,6 @@ class StableExpressivePE(nn.Module):
         if mlp_nlayers > 0:
             if mlp_nlayers == 1:
                 assert(mlp_hid == mlp_out)
-            self.bn = nn.ModuleList()
             self.mlp_nlayers = mlp_nlayers
             self.layers = nn.ModuleList([nn.Linear(k if i==0 else mlp_hid, 
                                         mlp_hid if i<mlp_nlayers-1 else mlp_out, bias=True) for i in range(mlp_nlayers)])
@@ -131,7 +128,7 @@ class StableExpressivePE(nn.Module):
                         output = self.activation(output)
                         output = output.transpose(0, 1)
                 W_list.append(output)             # [NxMxK]*B
-            return self.phi(W_list, edge_index, self.BASIS, final=final)   # [N_sum, D_pe]
+            return self.phi(W_list, edge_index, self.BASIS)   # [N_sum, D_pe]
 
     @property
     def out_dims(self) -> int:
@@ -178,7 +175,6 @@ class MLPPhi(nn.Module):
         return self.mlp.out_dims
 
 
-
 class GINPhi(nn.Module):
     gin: GIN
 
@@ -188,9 +184,8 @@ class GINPhi(nn.Module):
         super().__init__()
         self.gin = GIN(n_layers, in_dims, hidden_dims, out_dims, create_mlp, bn, laplacian=RAND_LAP)
         self.mlp = create_mlp(out_dims, out_dims, use_bias=True)
-        self.running_sum = 0
 
-    def forward(self, W_list: List[torch.Tensor], edge_index: torch.Tensor, BASIS, mean=False, final=True) -> torch.Tensor:
+    def forward(self, W_list: List[torch.Tensor], edge_index: torch.Tensor, BASIS, mean=False) -> torch.Tensor:
         """
         :param W_list: The {V * psi_l(Lambda) * V^T: l in [m]} tensors. [N_i, N_i, M] * B
         :param edge_index: Graph connectivity in COO format. [2, E_sum]
@@ -203,11 +198,7 @@ class GINPhi(nn.Module):
                 PE = (PE).mean(dim=1) # sum or mean along M? get N, D_pe
             else:
                 PE = (PE).sum(dim=1)
-                self.running_sum += PE
-            if final:
-                PE = self.running_sum
-                self.running_sum = 0
-            return PE              # [N_sum, D_pe]
+            return PE               # [N_sum, D_pe]
         else:
             n_max = max(W.size(0) for W in W_list)
             W_pad_list = []     # [N_i, N_max, M] * B
@@ -260,63 +251,12 @@ class GINEPhi(nn.Module):
         return self.gin.out_dims
 
 
-class PPGNPhi(nn.Module):
-    ppgn: MaskedPPGN
-
-    def __init__(self, n_layers: int, in_dims: int, hidden_dims: int, out_dims: int,
-                 create_mlp: Callable[[int, int], MLP]) -> None:
-        super(PPGNPhi, self).__init__()
-        self.ppgn = MaskedPPGN(in_dims, hidden_dims, out_dims, create_mlp, num_rb_layer=n_layers)
-        self.pe_project = nn.Linear(2*out_dims, out_dims)
-
-    def forward(self, W_list: List[torch.Tensor], edge_index: torch.Tensor) -> torch.Tensor:
-        """
-        :param W_list: The {V * psi_l(Lambda) * V^T: l in [m]} tensors. [N_i, N_i, M] * B
-        :param edge_index: Graph connectivity in COO format. [2, E_sum]
-        :return: Positional encoding matrix. [N_sum, D_pe]
-        """
-        # No edge info incorporated currently, TO DO: incorporate edge info into W
-        n_max = max(W.size(0) for W in W_list)
-        W_pad_list = []  # [N_max, N_max, M] * B
-        mask = []
-        for W in W_list:
-            zeros = torch.zeros(W.size(0), n_max - W.size(1), W.size(2), device=W.device)
-            W_pad = torch.cat([W, zeros], dim=1)  # [N_i, N_max, M]
-            zeros = torch.zeros(n_max - W_pad.size(0), W_pad.size(1), W_pad.size(2), device=W_pad.device)
-            W_pad = torch.cat([W_pad, zeros], dim=0)  # [N_max, N_max, M]
-            W_pad = torch.unsqueeze(W_pad, dim=0) # [1, N_max, N_max, M]
-            W_pad_list.append(W_pad)
-            mask.append((torch.arange(n_max, device=W.device) < W.size(0)).unsqueeze(0)) # [1, N_max]
-
-        W = torch.cat(W_pad_list, dim=0)  # [B, N_max, N_max, M]
-        mask = torch.cat(mask, dim=0) # [B, N_max]
-        mask_2d = mask.float().unsqueeze(-1) # [B, N_max, 1]
-        mask_2d = torch.matmul(mask_2d, mask_2d.transpose(1, 2)).unsqueeze(-1) # [B, N_max, N_max, 1]
-        PE = self.ppgn(W, mask_2d)   # [B, N_max, N_max, D_pe]
-        # PE = mask2d_sum_pooling(PE, mask_2d) # TO DO: more variants of pooling functions, e.g. diag/off-diag pooling
-        PE = mask2d_diag_offdiag_meanpool(PE, mask_2d)
-        PE = self.pe_project(PE)
-        # PE = PE.sum(dim=1)
-        PE = PE.view(-1, PE.size(-1))[mask.view(-1)] # [N_sum, D_pe]
-        return PE
-
-    @property
-    def out_dims(self) -> int:
-        return self.ppgn.out_dims
-
-
 def GetPhi(cfg: Schema, create_mlp: Callable[[int, int], MLP], device):
     if cfg.phi_model_name == 'gin':
         return GINPhi(cfg.n_phi_layers, cfg.RAND_mlp_out, cfg.phi_hidden_dims, cfg.pe_dims,
                                          create_mlp, cfg.batch_norm, RAND_LAP=cfg.RAND_LAP)
         #return GINPhi(cfg.n_phi_layers, cfg.n_psis, cfg.phi_hidden_dims, cfg.pe_dims,
                       #create_mlp) # no bn for padding input
-    elif cfg.phi_model_name == 'gin_deepsets':
-        return GINDeepSetsPhi(cfg.n_phi_layers, cfg.n_psis, cfg.phi_hidden_dims, cfg.pe_dims,
-                                         create_mlp)
-    elif cfg.phi_model_name == 'ppgn': # unstable now
-        return PPGNPhi(cfg.n_phi_layers, cfg.n_psis, cfg.phi_hidden_dims, cfg.pe_dims,
-                                         create_mlp)
     elif cfg.phi_model_name == 'ign':
         return IGNPhi(cfg.n_phi_layers, cfg.n_psis, cfg.phi_hidden_dims, cfg.pe_dims,
                        create_mlp, device)

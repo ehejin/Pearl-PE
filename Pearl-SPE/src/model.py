@@ -8,8 +8,8 @@ from torch_geometric.nn import global_mean_pool, global_add_pool
 from src.gine import GINE
 from src.deepsets import DeepSets
 from src.mlp import MLP
-from src.stable_expressive_pe import StableExpressivePE, MaskedStableExpressivePE, GetPhi, GetPsi
-from src.sign_inv_pe import SignInvPe, BasisInvPE, IGNBasisInv, MaskedSignInvPe
+from src.pe import PEARL_PE, GetPhi, GetPsi
+from src.sign_inv_pe import SignInvPe_PEARL, MaskedSignInvPe_PEARL
 from src.vanilla_pe import IdPE
 from src.gin import GIN
 from src.pna import PNA
@@ -59,27 +59,24 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
         raise Exception("Base model not implemented!")
     # pe_method
     if cfg.pe_method == "sign_inv":
-        # gin = GIN(cfg.n_phi_layers, 1, cfg.phi_hidden_dims, cfg.phi_hidden_dims, create_mlp, bn=cfg.batch_norm)  # 1=eigenvec
         if not rgnn:
             gin = GIN(cfg.n_phi_layers, 1, cfg.phi_hidden_dims, 4, create_mlp, bn=cfg.batch_norm)  # 1=eigenvec
-            # rho = create_mlp(cfg.pe_dims * cfg.phi_hidden_dims, cfg.pe_dims)
             rho = MLP(cfg.n_psi_layers, cfg.pe_dims * 4, cfg.phi_hidden_dims,
                     cfg.pe_dims, use_bn=cfg.mlp_use_bn, activation='relu', dropout_prob=0.0)
             return Model(
                 cfg.n_node_types, cfg.node_emb_dims,
-                positional_encoding=SignInvPe(phi=gin, rho=rho),
+                positional_encoding=SignInvPe_PEARL(phi=gin, rho=rho),
                 base_model=base_model,
                 pe_aggregate=cfg.pe_aggregate,
                 feature_type=kwargs.get("feature_type")
             )
         else:
             gin = GIN(cfg.n_phi_layers, 1, cfg.phi_hidden_dims, 30, create_mlp, bn=cfg.batch_norm)  # 1=eigenvec
-            # rho = create_mlp(cfg.pe_dims * cfg.phi_hidden_dims, cfg.pe_dims)
             rho = MLP(cfg.n_psi_layers, 30, cfg.phi_hidden_dims,
                     cfg.pe_dims, use_bn=cfg.mlp_use_bn, activation='relu', dropout_prob=0.0)
-            return Model_PEARL_R(
+            return Model_R(
                 cfg.n_node_types, cfg.node_emb_dims,
-                positional_encoding=SignInvPe(phi=gin, rho=rho),
+                positional_encoding=SignInvPe_PEARL(phi=gin, rho=rho),
                 base_model=base_model,
                 pe_aggregate=cfg.pe_aggregate,
                 feature_type=kwargs.get("feature_type")
@@ -92,7 +89,7 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
                     activation='relu', dropout_prob=0.0)
             return Model(
                 cfg.n_node_types, cfg.node_emb_dims,
-                positional_encoding=MaskedSignInvPe(phi=gin, rho=rho),
+                positional_encoding=MaskedSignInvPe_PEARL(phi=gin, rho=rho),
                 base_model=base_model,
                 pe_aggregate=cfg.pe_aggregate,
                 feature_type=kwargs.get("feature_type")
@@ -102,38 +99,22 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
             # rho = create_mlp(cfg.phi_hidden_dims, cfg.pe_dims)
             rho = MLP(cfg.n_psi_layers, cfg.phi_hidden_dims, cfg.phi_hidden_dims, cfg.pe_dims, use_bn=cfg.mlp_use_bn,
                     activation='relu', dropout_prob=0.0)
-            return Model_PEARL_R(
+            return Model_R(
                 cfg.n_node_types, cfg.node_emb_dims,
-                positional_encoding=MaskedSignInvPe(phi=gin, rho=rho),
+                positional_encoding=MaskedSignInvPe_PEARL(phi=gin, rho=rho),
                 base_model=base_model,
                 pe_aggregate=cfg.pe_aggregate,
                 feature_type=kwargs.get("feature_type")
             )
-    elif cfg.pe_method == 'basis_inv':
-        assert kwargs.get("uniq_mults") is not None
-        uniq_mults = kwargs.get("uniq_mults")
-        Phi = IGNBasisInv(uniq_mults, 1, hidden_channels=cfg.phi_hidden_dims, **kwargs)
-        # rho = create_mlp(2 * cfg.pe_dims, cfg.pe_dims) # 2 * pe_dim = eigenvalues + eigenvectors
-        rho = GIN(cfg.n_psi_layers, 2 * cfg.pe_dims, 2 * cfg.pe_dims, cfg.pe_dims, create_mlp)
-        return Model(
-            cfg.n_node_types, cfg.node_emb_dims,
-            positional_encoding=BasisInvPE(phi=Phi, rho=rho),
-            base_model=base_model,
-            pe_aggregate = cfg.pe_aggregate,
-            feature_type = kwargs.get("feature_type")
-        )
     elif cfg.pe_method.endswith('spe'):
         Phi = GetPhi(cfg, create_mlp_ln, kwargs['device']) # for phi function, use layer norm
         Psi_list = [
             GetPsi(cfg)
             for _ in range(cfg.n_psis)
         ]
-        # Stable PE
         if cfg.pe_method == 'spe':
-            pe_model = StableExpressivePE(Phi, Psi_list, cfg.BASIS, k=cfg.RAND_k, mlp_nlayers=cfg.RAND_mlp_nlayers, mlp_hid=cfg.RAND_mlp_hid, spe_act=cfg.RAND_act, mlp_out=cfg.RAND_mlp_out)
-        elif cfg.pe_method == 'masked_spe':
-            pe_model = MaskedStableExpressivePE(Phi, Psi_list)
-        return Model_PEARL_W(
+            pe_model = PEARL_PE(Phi, Psi_list, cfg.BASIS, k=cfg.RAND_k, mlp_nlayers=cfg.RAND_mlp_nlayers, mlp_hid=cfg.RAND_mlp_hid, spe_act=cfg.RAND_act, mlp_out=cfg.RAND_mlp_out)
+        return Model_GNN_PEARL(
             cfg.n_node_types, cfg.node_emb_dims,
             positional_encoding=pe_model,
             base_model=base_model,
@@ -192,10 +173,7 @@ class Model(nn.Module):
         return self.base_model(X_n, batch.edge_index, batch.edge_attr, PE, batch.snorm if "snorm" in batch else None
                                , batch.batch)           # [B]
 
-'''
-    This is our model for RPEARL PE processing. We pass in only random vectors. 
-'''
-class Model_PEARL_R(nn.Module):
+class Model_R(nn.Module):
     node_features: nn.Embedding
     positional_encoding: nn.Module
     fc: nn.Linear
@@ -236,10 +214,9 @@ class Model_PEARL_R(nn.Module):
                                , batch.batch) 
     
 '''
-    This is our model for BPEARL PE processing. We pass in the laplacian along with W, 
-    our basis vectors.
+    This is our GNN with PEARL PE processing. We pass in the laplacian along with W, our random/basis vectors.
 '''
-class Model_PEARL_W(nn.Module):
+class Model_GNN_PEARL(nn.Module):
     node_features: nn.Embedding
     positional_encoding: nn.Module
     fc: nn.Linear

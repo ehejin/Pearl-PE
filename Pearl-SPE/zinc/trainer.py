@@ -218,10 +218,6 @@ class Trainer:
         self.optimizer.step()
 
         loss = loss.item()
-        # lr = self.scheduler.get_last_lr()[0]
-        # self.logger.info("Training... Epoch: {}, batch: {}, loss: {:.6f}, lr: {:.6e}"
-        #        .format(self.curr_epoch, self.curr_batch, loss, lr))
-        # wandb.log({"train_loss": loss, "lr": lr})
 
         self.scheduler.step()
 
@@ -291,25 +287,6 @@ class Trainer:
         return instance
 
     def pre_transform(self, instance: Data) -> Data:
-        # get spectrum
-        #n = instance.num_nodes
-        ##L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
-        #L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)              # [N, N]
-
-        '''Lambda = torch.zeros(1, self.cfg.pe_dims)   # [1, D_pe]
-        V = torch.zeros(n, self.cfg.pe_dims)        # [N, D_pe]
-
-        #d = min(n - 1, self.cfg.pe_dims)   # number of eigen-pairs to use (then we zero-pad up to D_pe)
-        d = min(n, self.cfg.pe_dims)   # number of eigen-pairs to use (then we zero-pad up to D_pe)
-        eigenvalues, eigenvectors = torch.linalg.eigh(L)   # [N], [N, N]
-        #Lambda[0, :d] = eigenvalues[1:d + 1]
-        #V[:, :d] = eigenvectors[:, 1:d + 1]
-        Lambda[0, :d] = eigenvalues[0:d]
-        V[:, :d] = eigenvectors[:, 0:d]
-
-        instance.update({"Lambda": Lambda, "V": V})'''
-        #instance.update({"Lap": L})
-
         return instance
 
     def get_param_groups(self) -> List[Dict[str, Any]]:
