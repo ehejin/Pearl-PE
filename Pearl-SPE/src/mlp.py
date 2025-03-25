@@ -107,24 +107,12 @@ class MLPLayer(nn.Module):
                 X = self.bn(X.transpose(1, 2)).transpose(1,2)
                 X = X.transpose(0, 1)
             else:
-                torch.cuda.synchronize()
-                X_masked = X[mask].detach()
-                X[mask] = self.bn(X_masked)
+                X[mask] = self.bn(X[mask])
         elif self.bn is not None:
-#            if X.ndim == 3:
-#                # X = self.bn(X.transpose(2, 1)).transpose(2, 1)
-#                X = self.ln(X)
-#            else:
-#                X = self.bn(X)
             shape = X.size()
             X = X.reshape(-1, shape[-1])   # [prod(***), D_out]
             X = self.bn(X)                 # [prod(***), D_out]
             X = X.reshape(shape)           # [***, D_out]
         X = self.activation(X)             # [***, D_out]
-#        if self.bn is not None:
-#            if X.ndim == 3:
-#                X = self.bn(X.transpose(2, 1)).transpose(2, 1)
-#            else:
-#                X = self.bn(X)
         X = self.dropout(X)                # [***, D_out]
         return X
