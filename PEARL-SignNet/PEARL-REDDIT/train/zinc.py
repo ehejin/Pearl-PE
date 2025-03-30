@@ -163,13 +163,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="give_config")
     #parser.add_argument('--num_samples1', type=int, default=0, action='store', required=True)
     parser.add_argument('--config', type=str, default='zinc.yaml', help="Path to the config file")
-    parser.add_argument('--gpu_id', type=str, default='0', help="GPU id")
+    parser.add_argument('--gpu_id', type=str, default='1', help="GPU id")
     args = parser.parse_args()
     print(args)
-    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"]=args.gpu_id
     cfg.merge_from_file('train/config/'+args.config)
     cfg = update_cfg(cfg)
+    cfg.device = 'cuda:' + str(args.gpu_id)
     if cfg.dataset == 'ZINC':
         run(cfg, create_dataset, create_model, train, test)
     else:

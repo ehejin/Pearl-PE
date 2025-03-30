@@ -12,7 +12,7 @@ train:
   epochs: 310
   runs: 10
   batch_size: 100
-num_samples: 30
+num_samples: 40
 wandb: True
 run_name: MULTI100-4:128
 project_name: Reddit-M

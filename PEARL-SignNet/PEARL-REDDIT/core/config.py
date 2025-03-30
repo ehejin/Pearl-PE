@@ -77,7 +77,7 @@ import argparse
 def update_cfg(cfg, args_str=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default="", metavar="FILE", help="Path to config file")
-    parser.add_argument('--gpu_id', default='0')
+    parser.add_argument('--gpu_id', default='1')
     # opts arg needs to match set_cfg
     parser.add_argument("opts", default=[], nargs=argparse.REMAINDER, 
                          help="Modify config options using the command-line")
