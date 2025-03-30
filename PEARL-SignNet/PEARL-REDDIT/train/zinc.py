@@ -78,7 +78,7 @@ def train(train_loader, model, optimizer, device):
     total_loss = 0
     N = 0 
     for data in train_loader:
-        r = 1+torch.randn(data.num_nodes, 80, 1).to(torch.device('cuda')) #NxMx1
+        r = 1+torch.randn(data.num_nodes, 80, 1).to(device) #NxMx1
         if isinstance(data, list):
             data, y, num_graphs = [d.to(device) for d in data], data[0].y, data[0].num_graphs 
         else:
@@ -96,7 +96,7 @@ def test(loader, model, evaluator, device):
     total_error = 0
     N = 0
     for data in loader:
-        r = 1+torch.randn(data.num_nodes, 80, 1).to(torch.device('cuda'))
+        r = 1+torch.randn(data.num_nodes, 80, 1).to(device)
         if isinstance(data, list):
             data, y, num_graphs = [d.to(device) for d in data], data[0].y, data[0].num_graphs 
         else:
@@ -114,7 +114,7 @@ def train_REDDIT(train_loader, model, optimizer, device, samples=30):
     else:
         criterion = torch.nn.CrossEntropyLoss()
     for data in train_loader:
-        r = 1+torch.randn(data.num_nodes, samples, 1).to(torch.device('cuda')) #NxMx1
+        r = 1+torch.randn(data.num_nodes, samples, 1).to(device) #NxMx1
         if isinstance(data, list):
             data, y, num_graphs = [d.to(device) for d in data], data[0].y, data[0].num_graphs 
         else:
@@ -136,7 +136,7 @@ def test_REDDIT(loader, model, evaluator, device, samples=30):
     total = 0
     correct = 0
     for data in loader:
-        r = 1+torch.randn(data.num_nodes, samples, 1).to(torch.device('cuda'))
+        r = 1+torch.randn(data.num_nodes, samples, 1).to(device)
         if isinstance(data, list):
             data, y, num_graphs = [d.to(device) for d in data], data[0].y, data[0].num_graphs 
         else:
