@@ -30,6 +30,7 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
             name=cfg.run_name,         # Optional: Give your run a name
             config=cfg
         )
+    all_test_curves = []
     for run in range(1, 11): 
         if run != 1 and cfg.dataset != 'ZINC':
             train_dataset, val_dataset, test_dataset = create_dataset(cfg, run-1)
@@ -43,6 +44,7 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
         start_outer = time.time()
         best_val_perf = test_perf = float('-inf')
         maximum_test = 0
+        test_curve = []
         for epoch in range(1, cfg.train.epochs+1):
             start = time.time()
             model.train()
@@ -59,6 +61,7 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
             else:
                 val_perf = 0
                 test_perf = test(test_loader, model, evaluator=evaluator, device=cfg.device, samples=samples)
+                test_curve.append(test_perf)
                 if test_perf > maximum_test:
                     maximum_test = test_perf
             time_per_epoch = time.time() - start 
@@ -82,6 +85,7 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
             writer.add_scalar(f'Run{run}/memory', memory_allocated, epoch)   
 
             torch.cuda.empty_cache() # empty test part memory cost
+        all_test_curves.append(test_curve)
         if cfg.dataset != 'ZINC':
             wandb.run.summary["best_test" + str(run)] = maximum_test
             run_tests.append(maximum_test)
@@ -90,6 +94,16 @@ def run(cfg, create_dataset, create_model, train, test, evaluator=None, samples=
         test_perfs.append(test_perf)
         vali_perfs.append(best_val_perf)
 
+    all_test_curves = np.array(all_test_curves)  # (num_folds, num_epochs)
+    mean_test_curve = np.mean(all_test_curves, axis=0)  # (num_epochs,)
+
+    best_epoch = np.argmax(mean_test_curve)  
+    test_at_best_epoch = all_test_curves[:, best_epoch]
+
+    mean = np.mean(test_at_best_epoch)
+    wandb.run.summary["final_test_at_best_epoch"] = float(mean)
+    std = np.std(test_at_best_epoch)
+    
     test_perf = torch.tensor(test_perfs)
     vali_perf = torch.tensor(vali_perfs)
     logger.info("-"*50)

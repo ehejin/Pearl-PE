@@ -1,6 +1,4 @@
 import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]='1'
 import torch
 from core.config import cfg, update_cfg
 from core.train import run
@@ -48,7 +46,7 @@ def create_dataset(cfg, fold_idx):
         root = 'data/' + cfg.dataset
         dataset = TUDataset(root, name=cfg.dataset, transform=transform)
         labels = [data.y.item() for data in dataset]
-        seed = 42  # Set your seed
+        seed = 42  # Set seed
         train_dataset, test_dataset = stratified_split(dataset, seed, fold_idx)
         val_dataset = None
     return train_dataset, val_dataset, test_dataset
@@ -123,7 +121,10 @@ def train_REDDIT(train_loader, model, optimizer, device, samples=30):
         optimizer.zero_grad()
         out = model(data, r).squeeze()
         #out = model(data).squeeze()
-        loss = criterion(out.float(), y.float()) # float if binary, long if multi    
+        if model.n_out == 1:
+            loss = criterion(out.float(), y.float()) # float if binary, long if multi  
+        else:
+            loss = criterion(out.float(), y.long())
         loss.backward()
         total_loss += loss.item() * num_graphs
         optimizer.step()
@@ -162,8 +163,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="give_config")
     #parser.add_argument('--num_samples1', type=int, default=0, action='store', required=True)
     parser.add_argument('--config', type=str, default='zinc.yaml', help="Path to the config file")
+    parser.add_argument('--gpu_id', type=str, default='0', help="GPU id")
     args = parser.parse_args()
     print(args)
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"]=args.gpu_id
     cfg.merge_from_file('train/config/'+args.config)
     cfg = update_cfg(cfg)
     if cfg.dataset == 'ZINC':
