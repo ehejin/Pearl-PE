@@ -173,4 +173,4 @@ if __name__ == '__main__':
     if cfg.dataset == 'ZINC':
         run(cfg, create_dataset, create_model, train, test)
     else:
-        run(cfg, create_dataset, create_model, train_REDDIT, test_REDDIT, cfg.num_samples)
+        run(cfg, create_dataset, create_model, train_REDDIT, test_REDDIT, samples=cfg.num_samples)
