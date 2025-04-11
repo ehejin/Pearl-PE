@@ -1,18 +1,18 @@
 dataset: REDDIT-MULTI-5K
 model:
-  class_num: 5 # 1 or 5
   n_out: 5
-  gnn_type: PEARL
   num_layers: 6
-  num_layers_pe: 4
-  hidden_size_3d: 128
+  num_layers_pe: 8
+  hidden_size_3d: 64
   hidden_size: 128
   pool: add
 train:
-  epochs: 310
+  epochs: 3
   runs: 10
-  batch_size: 100
+  batch_size: 128
 num_samples: 40
+test_samples: 200
+runs: 1-11
 wandb: True
 run_name: MULTI100-4:128
 project_name: Reddit-M

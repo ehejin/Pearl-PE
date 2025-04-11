@@ -50,8 +50,6 @@ def set_cfg(cfg):
     # Model options
     # ------------------------------------------------------------------------ #
     cfg.model = CN()
-    # GNN type used, see core.model_utils.pyg_gnn_wrapper for all options
-    cfg.model.gnn_type = 'GINEConv' # change to list later
     # Hidden size of the model
     cfg.model.hidden_size = 128
     # Number of gnn layers (doesn't include #MLPs)
@@ -60,11 +58,16 @@ def set_cfg(cfg):
     cfg.model.num_layers_pe = 4
     # Pooling type for generaating graph/subgraph embedding from node embeddings 
     cfg.model.pool = 'add'
-
+    # Hidden size of PEARL GNN
     cfg.model.hidden_size_3d = 128
-    cfg.model.class_num = None
+    # Number of class outputs (1 for Reddit-B and 5 for Reddit-M)
     cfg.model.n_out=1
+    # Number of samples to train with for PEARL
     cfg.num_samples = 30
+    # Number of samples to test with
+    cfg.test_samples = 200
+    # String 'a-b' which runs 10-fold cross validation for splits a to b-1
+    cfg.runs = None
 
     return cfg
     

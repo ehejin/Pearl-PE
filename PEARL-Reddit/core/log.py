@@ -10,7 +10,7 @@ def config_logger(cfg, OUT_PATH="results/", time=False):
         data_name += f'-{cfg.handtune}'
     # generate config_string
     os.makedirs(os.path.join(OUT_PATH, cfg.version), exist_ok=True)
-    config_string = f'T[{cfg.task}] GNN[{cfg.model.gnn_type}] L[{cfg.model.num_layers_pe}-{cfg.model.num_layers}]  '\
+    config_string = f'T[{cfg.task}] L[{cfg.model.num_layers_pe}-{cfg.model.num_layers}]  '\
                     f'H[{cfg.model.hidden_size}] Pool[{cfg.model.pool}] '\
                     f'Reg[{cfg.train.dropout}-{cfg.train.wd}] Seed[{cfg.seed}] GPU[{cfg.device}]'
     

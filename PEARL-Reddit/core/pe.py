@@ -2,7 +2,6 @@ import torch, numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter
-from core.transform import to_dense_list_EVD
 
 import core.model_utils.masked_layers as masked_layers 
 import core.model_utils.pyg_gnn_wrapper as elements
@@ -61,7 +60,7 @@ class GNN3d(nn.Module):
         return x.transpose(0, 1)
 
 '''
-    This is our PEARL model that builds off of SignNet. We simply pass in basis or random vectors into
+    This is our PEARL model. We simply pass in basis or random vectors into
     the GNN3D model and take the expectation.
 '''
 class PEARL(nn.Module): 
