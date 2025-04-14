@@ -21,13 +21,13 @@ from torch_geometric.utils import get_laplacian, to_dense_adj
 # models
 from root import root
 from src.mlp import MLP
-from src.model import Model, GINEBaseModel, construct_model
+from src.model import PEARL_GNN_Model, GINEBaseModel, construct_model
 from src.schema import Schema
 
 
 class Trainer:
     cfg: Schema
-    model: Model
+    model: PEARL_GNN_Model
     train_loader: DataLoader
     val_loader: DataLoader
     optimizer: optim.Adam

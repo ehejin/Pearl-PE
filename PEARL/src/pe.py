@@ -6,7 +6,6 @@ from torch_geometric.utils import unbatch
 
 from src.gin import GIN
 from src.gine import GINE
-from src.transformer import Transformer
 from src.mlp import MLP
 from torch_scatter import scatter_add
 from torch_sparse import SparseTensor, matmul, fill_diag, sum, mul
@@ -61,7 +60,7 @@ def bern_filter(S, W, k):
 class PEARLPositionalEncoder(nn.Module):
     phi: nn.Module
     psi_list: nn.ModuleList
-    def __init__(self, phi: nn.Module, psi_list: List[nn.Module], BASIS, k=16, mlp_nlayers=1, mlp_hid=16, pearl_act='relu', mlp_out=16) -> None:
+    def __init__(self, phi: nn.Module, BASIS, k=16, mlp_nlayers=1, mlp_hid=16, pearl_act='relu', mlp_out=16) -> None:
         super().__init__()
         self.mlp_nlayers = mlp_nlayers
         if mlp_nlayers > 0:

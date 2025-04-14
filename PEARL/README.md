@@ -6,8 +6,8 @@ Download the DrugOOD datasets [here](https://drive.google.com/drive/folders/17nV
 
 To run experiments on ZINC, cd to ./zinc and run
 ```
-python runner.py --config_dirpath ../configs/zinc --config_name BPEARL_ZINC.yaml --seed 0
-python runner.py --config_dirpath ../configs/zinc --config_name RPEARL-ZINC.yaml --seed 0
+python runner.py --config_dirpath ../configs/zinc --config_name BPEARL-500k.yaml --seed 0
+python runner.py --config_dirpath ../configs/zinc --config_name RPEARL-500k.yaml --seed 0
 ```
 
 To run experiments on DrugOOD, cd to ./drugood and run

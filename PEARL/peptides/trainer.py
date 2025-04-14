@@ -24,7 +24,7 @@ from src.data_utils.peptides import PeptidesStructuralDataset
 # models
 from root import root
 from src.mlp import MLP
-from src.model import Model, construct_model
+from src.model import PEARL_GNN_Model, construct_model
 from src.schema import Schema
 
 from collections import defaultdict
@@ -79,7 +79,7 @@ def custom_collate_fn(data_list):
 
 class Trainer:
     cfg: Schema
-    model: Model
+    model: PEARL_GNN_Model
     train_loader: DataLoader
     val_loader: DataLoader
     optimizer: optim.Adam

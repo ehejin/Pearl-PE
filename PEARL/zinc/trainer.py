@@ -19,7 +19,7 @@ from torch_geometric.utils import get_laplacian, to_dense_adj
 
 from root import root
 from src.mlp import MLP
-from src.model import Model, construct_model
+from src.model import PEARL_GNN_Model, construct_model
 from src.schema import Schema
 
 
@@ -56,7 +56,7 @@ def print_parameter_count(model):
 
 class Trainer:
     cfg: Schema
-    model: Model
+    model: PEARL_GNN_Model
     train_loader: DataLoader
     val_loader: DataLoader
     optimizer: optim.Adam
