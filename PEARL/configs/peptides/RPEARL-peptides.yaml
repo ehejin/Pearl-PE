@@ -4,7 +4,7 @@ defaults:
 
 base_model: gine
 gine_model_bn: false
-pe_method: spe
+pe_method: pearl
 n_node_types: 9
 n_edge_types: 3
 node_emb_dims: 135

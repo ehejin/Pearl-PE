@@ -11,25 +11,17 @@ from omegaconf import OmegaConf
 from torch import optim, nn
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
-# dataset and dataloader
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import degree
-# from torch_geometric.datasets import ZINC
-from dataset import ZINC # customized ZINC with processed file re-naming support
-# from torch_geometric.loader import DataLoader
-from src.data_utils.dataloder import DataLoader # customized dataloder to handle BasisNet features
-# from src.data_utils.dataloder import SameSizeDataLoader # DO NOT USE NOW: currently encounter instability of training
+from dataset import ZINC 
+from src.data_utils.dataloader import DataLoader 
 from torch_geometric.utils import get_laplacian, to_dense_adj
 
-# models
 from root import root
 from src.mlp import MLP
 from src.model import Model, construct_model
 from src.schema import Schema
 
-
-
-from src.utils import eigenvalue_multiplicity, get_projections
 
 from collections import defaultdict
 def print_parameter_count_by_module(model):
@@ -79,32 +71,27 @@ class Trainer:
         set_seed(cfg.seed)
         self.seed = cfg.seed
 
-        # Initialize configuration
         self.cfg = cfg
         cfg.out_dirpath = root(cfg.out_dirpath)
 
         processed_suffix = '_pe' + str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
-        transform = self.get_projs if cfg.pe_method == 'basis_inv' else self.get_snorm
-        pre_transform = self.pre_transform if cfg.pe_method != 'none' else None
-        print('USING ZINC SUBSET?', cfg.use_subset)
-        train_dataset = ZINC(root("data/zinc"), subset=cfg.use_subset, split="train", pre_transform=pre_transform,
+        transform = self.get_lap
+        print('ZINC Subset is: ', cfg.use_subset)
+        train_dataset = ZINC(root("data/zinc"), subset=cfg.use_subset, split="train", pre_transform=None,
                              transform=transform, processed_suffix=processed_suffix)
-        val_dataset = ZINC(root("data/zinc"), subset=cfg.use_subset, split="val", pre_transform=pre_transform,
+        val_dataset = ZINC(root("data/zinc"), subset=cfg.use_subset, split="val", pre_transform=None,
                            transform=transform, processed_suffix=processed_suffix)
-        test_dataset = ZINC(root("data/zinc"), subset=cfg.use_subset, split="test", pre_transform=pre_transform,
+        test_dataset = ZINC(root("data/zinc"), subset=cfg.use_subset, split="test", pre_transform=None,
                            transform=transform, processed_suffix=processed_suffix)
 
-
-        # self.train_loader = DataLoader(train_dataset[:cfg.subset_size], batch_size=cfg.train_batch_size, shuffle=True)
         self.train_loader = DataLoader(train_dataset, batch_size=cfg.train_batch_size, shuffle=True, num_workers=3)
         self.val_loader = DataLoader(val_dataset, batch_size=cfg.val_batch_size, shuffle=False, num_workers=0)
         self.test_loader = DataLoader(test_dataset, batch_size=cfg.val_batch_size, shuffle=False, num_workers=0)
 
 
         # construct model after loading dataset
-        kwargs = {"uniq_mults": [1, 2, 3, 4, 5]} if cfg.pe_method == 'basis_inv' else {} # only works for pe-dim=8
-        # kwargs = {"uniq_mults": [i for i in range(1, 10)]} if cfg.pe_method == 'basis_inv' else {} # only works for pe-dim=32
-        kwargs["deg"] = self.get_degree(train_dataset) if cfg.base_model == 'pna' else None
+        kwargs = {} # only works for pe-dim=8
+        kwargs["deg"] = None
         kwargs["device"] = f"cuda:{gpu_id}"
         kwargs["residual"] = cfg.residual
         kwargs["bn"] = cfg.batch_norm
@@ -142,12 +129,6 @@ class Trainer:
 
         # Set up WandB
         self.wandb = cfg.wandb
-        '''if cfg.wandb:
-            wandb.login(key="") # use your own WanbB key
-            cfg.__dict__['num_params'] = sum(param.numel() for param in self.model.parameters())
-            wandb.init(dir=root("."), project="SPE", name=cfg.wandb_run_name, config=cfg.__dict__)'''
-        
-        #wandb.run.log_code(".")
 
         # Miscellaneous
         self.curr_epoch = 1
@@ -268,25 +249,11 @@ class Trainer:
             self.cfg.RAND_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
         )
 
-    def get_projs(self, instance: Data) -> Data:
-        # get projection matrices on the fly
-        projs, mults = get_projections(eigvals=instance.Lambda, eigvecs=instance.V)
-        instance.update({"P": projs, "mults": mults})
-        return instance
-
-    def get_snorm(self, instance: Data) -> Data:
-        # get the graph normalization for nodes on the fly
+    def get_lap(self, instance: Data) -> Data:
         n = instance.num_nodes
         L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
         L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)
         instance.Lap = L
-
-        size = instance.num_nodes
-        snorm = torch.FloatTensor(size, 1).fill_(1./float(size)).sqrt()
-        #instance.update({"snorm": snorm})
-        return instance
-
-    def pre_transform(self, instance: Data) -> Data:
         return instance
 
     def get_param_groups(self) -> List[Dict[str, Any]]:
@@ -304,21 +271,6 @@ class Trainer:
             return curr_step / max(1, self.cfg.n_warmup_steps)
         else:
             return max(0.0, (self.n_total_steps - curr_step) / max(1, self.n_total_steps - self.cfg.n_warmup_steps))
-
-    def get_degree(self, train_dataset):
-        # reference: https://github.com/pyg-team/pytorch_geometric/blob/master/examples/pna.py
-        # Compute the maximum in-degree in the training data.
-        max_degree = -1
-        for data in train_dataset:
-            d = degree(data.edge_index[1], num_nodes=data.num_nodes, dtype=torch.long)
-            max_degree = max(max_degree, int(d.max()))
-
-        # Compute the in-degree histogram tensor
-        deg = torch.zeros(max_degree + 1, dtype=torch.long)
-        for data in train_dataset:
-            d = degree(data.edge_index[1], num_nodes=data.num_nodes, dtype=torch.long)
-            deg += torch.bincount(d, minlength=deg.numel())
-        return deg
 
 
 def set_seed(seed: int) -> None:

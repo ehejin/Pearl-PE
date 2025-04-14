@@ -1,6 +1,8 @@
 import torch
 from torch_geometric.data import Data
 
+# This file is from:
+# https://github.com/Graph-COM/SPE/blob/master/src/data_utils/batch.py 
 
 class Batch(Data):
     # used to handle BasisNet features

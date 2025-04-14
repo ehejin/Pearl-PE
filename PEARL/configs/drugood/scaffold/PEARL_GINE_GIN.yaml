@@ -4,7 +4,7 @@ defaults:
 
 # model attributes
 base_model: gine
-pe_method: spe
+pe_method: pearl
 n_node_types: 39   # based on https://github.com/pyg-team/pytorch_geometric/files/7494194/README.txt
 n_edge_types: 10
 node_emb_dims: 64
@@ -55,7 +55,7 @@ RAND_k: 16
 RAND_mlp_nlayers: 1
 RAND_mlp_hid: 32
 wandb: True
-wandb_run_name: SIZE(BEST SCAFFOLD RSPE)_SUM?
+wandb_run_name: DrugOOD-SIZE
 RAND_act: relu
 RAND_LAP: None
 RAND_mlp_out: 32

@@ -30,8 +30,7 @@ def main() -> None:
     cfg.subset_size = args.subset_size
 
     if cfg.wandb:
-        wandb.login(key="") # use your own WanbB key
-        #cfg.__dict__['num_params'] = sum(param.numel() for param in self.model.parameters())
+        wandb.login(key="") # use your own Wandb key
         wandb.init(dir=root("."), project="PEPTIDES", name=cfg.wandb_run_name, config=cfg.__dict__)
     total_test_loss = 0
     for i in range(args.num_seeds):

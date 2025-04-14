@@ -13,6 +13,8 @@ from torch_geometric.data.data import BaseData
 from torch_geometric.data.datapipes import DatasetAdapter
 from src.data_utils.batch import Batch
 
+# This file is from:
+# https://github.com/Graph-COM/SPE/blob/master/src/data_utils/dataloader.py 
 
 def shuffle_group_graphs(graphs):
     for g in graphs:

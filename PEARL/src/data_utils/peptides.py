@@ -12,6 +12,8 @@ from torch_geometric.data import Data, download_url
 from torch_geometric.data import InMemoryDataset
 from tqdm import tqdm
 
+# This file is from:
+# https://github.com/vijaydwivedi75/lrgb/blob/2410e9ee8d9309dd2120809d119a46092788eb89/graphgps/loader/dataset/peptides_structural.py
 
 class PeptidesStructuralDataset(InMemoryDataset):
     def __init__(self, root='dataset', smiles2graph=smiles2graph,
@@ -80,12 +82,10 @@ class PeptidesStructuralDataset(InMemoryDataset):
     def download(self):
         if decide_download(self.url):
             path = download_url(self.url, self.raw_dir)
-            # Save to disk the MD5 hash of the downloaded file.
             hash = self._md5sum(path)
             if hash != self.version:
                 raise ValueError("Unexpected MD5 hash of the downloaded file")
             open(osp.join(self.root, hash), 'w').close()
-            # Download train/val/test splits.
             path_split1 = download_url(self.url_stratified_split, self.root)
             assert self._md5sum(path_split1) == self.md5sum_stratified_split
         else:

@@ -11,16 +11,12 @@ from omegaconf import OmegaConf
 from torch import optim, nn
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
-# dataset and dataloader
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import degree
-#from torch_geometric.loader import DataLoader
-#from torch.utils.data import DataLoader
 
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 #from torch_geometric.loader import DataLoader
-from src.data_utils.dataloder import DataLoader # customized dataloder to handle BasisNet features
-# from src.data_utils.dataloder import SameSizeDataLoader # DO NOT USE NOW: currently encounter instability of training
+from src.data_utils.dataloader import DataLoader
 from torch_geometric.utils import get_laplacian, to_dense_adj
 
 from src.data_utils.peptides import PeptidesStructuralDataset
@@ -30,8 +26,6 @@ from root import root
 from src.mlp import MLP
 from src.model import Model, construct_model
 from src.schema import Schema
-
-from src.utils import eigenvalue_multiplicity, get_projections
 
 from collections import defaultdict
 def print_parameter_count_by_module(model):
@@ -100,33 +94,14 @@ class Trainer:
         set_seed(cfg.seed)
         self.seed = cfg.seed
 
-        # Initialize configuration
         self.cfg = cfg
         cfg.out_dirpath = root(cfg.out_dirpath)
 
-        # Construct model
-#        base_model = GINEBaseModel(
-#            cfg.n_base_layers, cfg.n_edge_types, cfg.node_emb_dims, cfg.base_hidden_dims, self.create_mlp
-#        )
-        # self.model = self.construct_model(cfg, base_model) # final model = pe_method + base_model
-        # self.model = construct_model(cfg, self.create_mlp)
-        # sanity check
-#        self.model = Model(
-#            cfg.n_node_types, cfg.node_emb_dims,
-#            positional_encoding=NoPE(cfg.pe_dims),
-#            base_model=base_model
-#        )
-
-        # self.model.to("cpu" if gpu_id is None else f"cuda:{gpu_id}")
-
-        # Construct data loaders
-        ## dataset preprocessing (before saved in disk) and loading
         processed_suffix = '_pe' + str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
-        transform = self.get_projs if cfg.pe_method == 'basis_inv' else self.get_snorm
-        pre_transform = self.pre_transform if cfg.pe_method != 'none' else None
+        transform = self.get_lap
         print('Loading OGB molHIV dataset...')
 
-        dataset = PeptidesStructuralDataset(root='dataset', transform = self.get_snorm)#pre_transform=pre_transform)
+        dataset = PeptidesStructuralDataset(root='dataset', transform = self.get_lap)
         split_idx = dataset.get_idx_split()
         train_dataset, val_dataset, test_dataset = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]
         #train_dataset.transform, val_dataset.transform, test_dataset.transform = transform_train, transform_eval, transform_eval
@@ -136,9 +111,8 @@ class Trainer:
         self.test_loader = DataLoader(test_dataset, batch_size=cfg.val_batch_size, shuffle=False, num_workers=0)
 
         # construct model after loading dataset
-        kwargs = {"uniq_mults": [1, 2, 3, 4, 5]} if cfg.pe_method == 'basis_inv' else {} # only works for pe-dim=8
-        # kwargs = {"uniq_mults": [i for i in range(1, 10)]} if cfg.pe_method == 'basis_inv' else {} # only works for pe-dim=32
-        kwargs["deg"] = self.get_degree(train_dataset) if cfg.base_model == 'pna' else None
+        kwargs = {} 
+        kwargs["deg"] = None
         kwargs["device"] = f"cuda:{gpu_id}"
         kwargs["residual"] = cfg.residual
         kwargs["bn"] = cfg.batch_norm
@@ -176,12 +150,6 @@ class Trainer:
 
         # Set up WandB
         self.wandb = cfg.wandb
-        '''if cfg.wandb:
-            wandb.login(key="") # use your own WanbB key
-            cfg.__dict__['num_params'] = sum(param.numel() for param in self.model.parameters())
-            wandb.init(dir=root("."), project="SPE", name=cfg.wandb_run_name, config=cfg.__dict__)'''
-        
-        #wandb.run.log_code(".")
 
         # Miscellaneous
         self.curr_epoch = 1
@@ -320,44 +288,11 @@ class Trainer:
             self.cfg.RAND_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
         )
 
-    def get_projs(self, instance: Data) -> Data:
-        # get projection matrices on the fly
-        projs, mults = get_projections(eigvals=instance.Lambda, eigvecs=instance.V)
-        instance.update({"P": projs, "mults": mults})
-        return instance
-
-    def get_snorm(self, instance: Data) -> Data:
-        # get the graph normalization for nodes on the fly
+    def get_lap(self, instance: Data) -> Data:
         n = instance.num_nodes
         L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
         L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)
         instance.Lap = L
-
-        size = instance.num_nodes
-        snorm = torch.FloatTensor(size, 1).fill_(1./float(size)).sqrt()
-        #instance.update({"snorm": snorm})
-        return instance
-
-    def pre_transform(self, instance: Data) -> Data:
-        # get spectrum
-        #n = instance.num_nodes
-        ##L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
-        #L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)              # [N, N]
-
-        '''Lambda = torch.zeros(1, self.cfg.pe_dims)   # [1, D_pe]
-        V = torch.zeros(n, self.cfg.pe_dims)        # [N, D_pe]
-
-        #d = min(n - 1, self.cfg.pe_dims)   # number of eigen-pairs to use (then we zero-pad up to D_pe)
-        d = min(n, self.cfg.pe_dims)   # number of eigen-pairs to use (then we zero-pad up to D_pe)
-        eigenvalues, eigenvectors = torch.linalg.eigh(L)   # [N], [N, N]
-        #Lambda[0, :d] = eigenvalues[1:d + 1]
-        #V[:, :d] = eigenvectors[:, 1:d + 1]
-        Lambda[0, :d] = eigenvalues[0:d]
-        V[:, :d] = eigenvectors[:, 0:d]
-
-        instance.update({"Lambda": Lambda, "V": V})'''
-        #instance.update({"Lap": L})
-
         return instance
 
     def get_param_groups(self) -> List[Dict[str, Any]]:
@@ -375,21 +310,6 @@ class Trainer:
             return curr_step / max(1, self.cfg.n_warmup_steps)
         else:
             return max(0.0, (self.n_total_steps - curr_step) / max(1, self.n_total_steps - self.cfg.n_warmup_steps))
-
-    def get_degree(self, train_dataset):
-        # reference: https://github.com/pyg-team/pytorch_geometric/blob/master/examples/pna.py
-        # Compute the maximum in-degree in the training data.
-        max_degree = -1
-        for data in train_dataset:
-            d = degree(data.edge_index[1], num_nodes=data.num_nodes, dtype=torch.long)
-            max_degree = max(max_degree, int(d.max()))
-
-        # Compute the in-degree histogram tensor
-        deg = torch.zeros(max_degree + 1, dtype=torch.long)
-        for data in train_dataset:
-            d = degree(data.edge_index[1], num_nodes=data.num_nodes, dtype=torch.long)
-            deg += torch.bincount(d, minlength=deg.numel())
-        return deg
 
 
 def set_seed(seed: int) -> None:

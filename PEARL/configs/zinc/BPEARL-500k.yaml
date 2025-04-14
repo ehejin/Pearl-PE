@@ -5,7 +5,7 @@ defaults:
 # model attributes
 base_model: gine
 gine_model_bn: False
-pe_method: spe
+pe_method: pearl
 n_node_types: 28   # based on https://github.com/pyg-team/pytorch_geometric/files/7494194/README.txt
 n_edge_types: 3
 node_emb_dims: 128
@@ -48,8 +48,6 @@ val_batch_size: 128
 BASIS: true # IF TRUE will run using basis vectors, otherwise will use random samples
 num_samples: 120
 RAND_k: 7
-#mlp_nlayers: 0
-#mlp_hid: 0
 RAND_mlp_nlayers: 1
 RAND_mlp_hid: 37    # shape that goes into PHI
 RAND_mlp_out: 37

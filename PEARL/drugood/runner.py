@@ -33,19 +33,12 @@ def main() -> None:
     cfg.subset_size = args.subset_size
 
     if cfg.wandb:
-        wandb.login(key="") # use your own WanbB key
-        if args.signnet:
-            wandb.init(dir=root("."), project="SIGNNET-drugood", name=cfg.wandb_run_name, config=cfg.__dict__,
-                   settings=wandb.Settings(code_dir="."))
-        elif args.rgnn:
-            wandb.init(dir=root("."), project="RGNN-drugood", name=cfg.wandb_run_name, config=cfg.__dict__,
-                   settings=wandb.Settings(code_dir="."))
-        else:
-            wandb.init(dir=root("."), project="SPE-drugood", name=cfg.wandb_run_name, config=cfg.__dict__,
+        wandb.login(key="") # use your own Wandb key
+        wandb.init(dir=root("."), project="PEARL-drugood", name=cfg.wandb_run_name, config=cfg.__dict__,
                    settings=wandb.Settings(code_dir="."))
 
 
-    for i in [0, 42, 1, 2, 4]:#[1, 24, 8, 42, 5]:#[0, 42, 8, 80, 22]:
+    for i in [0, 1, 2, 4, 42]:
         cfg.seed = i
         cfg.dataset = args.dataset
         trainer = Trainer(cfg, args.gpu_id, signnet=args.signnet, rgnn=args.rgnn)

@@ -31,8 +31,7 @@ def main() -> None:
 
     if cfg.wandb:
         wandb.login(key="") # use your own WanbB key
-        #cfg.__dict__['num_params'] = sum(param.numel() for param in self.model.parameters())
-        wandb.init(dir=root("."), project="SPE", name=cfg.wandb_run_name, config=cfg.__dict__)
+        wandb.init(dir=root("."), project="PEARL", name=cfg.wandb_run_name, config=cfg.__dict__)
     total_test_loss = 0
     for i in range(args.num_seeds):
         cfg.seed = args.seed + i

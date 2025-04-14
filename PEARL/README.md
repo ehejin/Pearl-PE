@@ -19,8 +19,8 @@ python runner.py --config_dirpath ../configs/drugood/scaffold --config_name PEAR
 
 To run experiments on the Peptides-struct dataset, cd to ./peptides and run
 ```
-python runner.py --config_dirpath ../configs/zinc --config_name BPEARL-peptides.yaml 
-python runner.py --config_dirpath ../configs/zinc --config_name RPEARL-peptides.yaml 
+python runner.py --config_dirpath ../configs/peptides --config_name BPEARL-peptides.yaml 
+python runner.py --config_dirpath ../configs/peptides --config_name RPEARL-peptides.yaml 
 ```
 
 ## Attribution

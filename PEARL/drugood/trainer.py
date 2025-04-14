@@ -12,13 +12,10 @@ from torch import optim, nn
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 from torchmetrics.classification import BinaryAUROC
 
-# dataset and dataloader
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import degree
-from dataset import DrugOOD # customized ZINC with processed file re-naming support
-# from torch_geometric.loader import DataLoader
-from src.data_utils.dataloder import DataLoader # customized dataloder to handle BasisNet features
-# from src.data_utils.dataloder import SameSizeDataLoader # DO NOT USE NOW: currently encounter instability of training
+from dataset import DrugOOD 
+from src.data_utils.dataloader import DataLoader 
 from torch_geometric.utils import get_laplacian, to_dense_adj
 
 # models
@@ -27,9 +24,6 @@ from src.mlp import MLP
 from src.model import Model, GINEBaseModel, construct_model
 from src.schema import Schema
 
-
-
-from src.utils import eigenvalue_multiplicity, get_projections, classification_analysis
 
 class Trainer:
     cfg: Schema
@@ -62,19 +56,18 @@ class Trainer:
             processed_suffix = '_pearl'+str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
         else:
             processed_suffix = '_OG_pe'+str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
-        transform = self.get_projs if cfg.pe_method == 'basis_inv' else self.get_snorm
-        pre_transform = self.pre_transform if cfg.pe_method != 'none' else None
+        transform = self.get_lap
         curator = "lbap_core_ic50_"+cfg.dataset
         data_root = root(os.path.join("data/drugood", curator)) # use your own data root
-        train_dataset = DrugOOD(data_root, curator=curator, split="train", pre_transform=pre_transform,
+        train_dataset = DrugOOD(data_root, curator=curator, split="train", pre_transform=None,
                              transform=transform, processed_suffix=processed_suffix)
-        iid_val_dataset = DrugOOD(data_root, curator=curator, split="iid_val", pre_transform=pre_transform,
+        iid_val_dataset = DrugOOD(data_root, curator=curator, split="iid_val", pre_transform=None,
                            transform=transform, processed_suffix=processed_suffix)
-        ood_val_dataset = DrugOOD(data_root, curator=curator, split="ood_val", pre_transform=pre_transform,
+        ood_val_dataset = DrugOOD(data_root, curator=curator, split="ood_val", pre_transform=None,
                                   transform=transform, processed_suffix=processed_suffix)
-        iid_test_dataset = DrugOOD(data_root, curator=curator, split="iid_test", pre_transform=pre_transform,
+        iid_test_dataset = DrugOOD(data_root, curator=curator, split="iid_test", pre_transform=None,
                            transform=transform, processed_suffix=processed_suffix)
-        ood_test_dataset = DrugOOD(data_root, curator=curator, split="ood_test", pre_transform=pre_transform,
+        ood_test_dataset = DrugOOD(data_root, curator=curator, split="ood_test", pre_transform=None,
                                    transform=transform, processed_suffix=processed_suffix)
         self.train_loader = DataLoader(train_dataset, batch_size=cfg.train_batch_size, shuffle=True, num_workers=4)
         self.iid_val_loader = DataLoader(iid_val_dataset, batch_size=cfg.val_batch_size, shuffle=False, num_workers=4)
@@ -84,14 +77,7 @@ class Trainer:
 
         # construct model after loading dataset
         kwargs = {}
-        if cfg.pe_method == 'basis_inv':
-            # uniq_mults = []
-            # for data in train_dataset:
-                # uniq_mults += data.mults.tolist()
-            # uniq_mults = set(uniq_mults)
-            # kwargs["uniq_mults"] = uniq_mults
-            kwargs["uniq_mults"] = {i for i in range(1, 15)} # can cover all data
-        kwargs["deg"] = self.get_degree(train_dataset) if cfg.base_model == 'pna' else None
+        kwargs["deg"] = None
         kwargs["device"] = f"cuda:{gpu_id}"
         kwargs["residual"] = cfg.residual
         kwargs["bn"] = cfg.batch_norm
@@ -130,13 +116,7 @@ class Trainer:
 
         # Set up WandB
         cfg.__dict__['num_params'] = sum(param.numel() for param in self.model.parameters())
-        '''wandb.login(key="") # use your own WanbB key
-        cfg.__dict__['num_params'] = sum(param.numel() for param in self.model.parameters())
-        wandb.init(dir=root("."), project="SPE-drugood", name=cfg.wandb_run_name, config=cfg.__dict__,
-                   settings=wandb.Settings(code_dir="."))'''
-        #wandb.run.summary["NUM_PARAMS"] = 
         print("num params: ", cfg.__dict__['num_params'])
-        #wandb.run.log_code("../src")
 
         # Miscellaneous
         self.curr_epoch = 1
@@ -160,13 +140,10 @@ class Trainer:
 
         for self.curr_epoch in range(1, self.cfg.n_epochs + 1):
             train_loss = self.train_epoch()
-            # train_loss = self.evaluate(self.train_loader)
             iid_val_loss = self.evaluate(self.iid_val_loader)
             ood_val_loss = self.evaluate(self.ood_val_loader)
             iid_test_loss = self.evaluate(self.iid_test_loader)
             ood_test_loss = self.evaluate(self.ood_test_loader)
-            # self.scheduler.step(eval_loss)
-            # lr = self.scheduler.get_last_lr()[0]
             lr = self.optimizer.state_dict()['param_groups'][0]['lr']
             wandb.log({'train_loss': train_loss, 'iid_eval_loss': iid_val_loss, 'ood_val_loss': ood_val_loss,
                        'iid_test_loss': iid_test_loss, 'ood_test_loss': ood_test_loss, 'lr': lr})
@@ -174,14 +151,11 @@ class Trainer:
                 best_iid_val_loss, best_iid_test_loss = iid_val_loss, iid_test_loss
                 wandb.run.summary["best_iid_val_loss" + str(self.seed)] = best_iid_val_loss
                 wandb.run.summary["best_iid_test_loss"+ str(self.seed)] = best_iid_test_loss
-                #torch.save(self.model.state_dict(), self.cfg.pe_method + '_' + str(self.cfg.pe_dims) + '_iid.pt')
             if ood_val_loss > best_ood_val_loss:
                 best_ood_val_loss, best_ood_test_loss = ood_val_loss, ood_test_loss
                 wandb.run.summary["best_ood_val_loss"+ str(self.seed)] = best_ood_val_loss
                 wandb.run.summary["best_ood_test_loss"+ str(self.seed)] = best_ood_test_loss
-                #torch.save(self.model.state_dict(), self.cfg.pe_method + '_' + str(self.cfg.pe_dims) + '_ood.pt')
         return best_ood_test_loss
-        #torch.save(self.model.state_dict(), self.cfg.pe_method + '_' + str(self.cfg.pe_dims) + '.pt')
 
     def train_epoch(self) -> float:
         self.model.train()
@@ -267,8 +241,6 @@ class Trainer:
             self.evaluate_batch(batch)
 
         total_loss = self.metric.compute().item()
-        #classification_analysis(torch.cat(self.metric.preds), torch.cat(self.metric.target),
-        #                        torch.tensor([data.num_nodes for data in eval_loader.dataset]))
         self.metric.reset()
         self.val_writer.write(f"Epoch: {self.curr_epoch}\t Loss: {total_loss}\n")
         self.val_writer.flush()
@@ -327,50 +299,16 @@ class Trainer:
             self.cfg.RAND_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
         )'''
 
-
-    def get_projs(self, instance: Data) -> Data:
-        # get projection matrices on the fly
-        projs, mults = get_projections(eigvals=instance.Lambda, eigvecs=instance.V)
-        instance.update({"P": projs, "mults": mults})
-        return instance
-
-    def get_snorm(self, instance: Data) -> Data:
-        # get the graph normalization for nodes on the fly
+    def get_lap(self, instance: Data) -> Data:
         if not self.signnet and not self.rgnn:
             n = instance.num_nodes
             L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
             L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)
             instance.Lap = L
-
-            #size = instance.num_nodes
-            #snorm = torch.FloatTensor(size, 1).fill_(1./float(size)).sqrt()
-            #instance.update({"snorm": snorm})
         else:
             size = instance.num_nodes
             snorm = torch.FloatTensor(size, 1).fill_(1./float(size)).sqrt()
             instance.update({"snorm": snorm})
-        return instance
-
-    def pre_transform(self, instance: Data) -> Data:
-        # get spectrum
-        if not self.signnet and not self.rgnn:
-            n = instance.num_nodes
-            L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
-            L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)              # [N, N]
-
-            Lambda = torch.zeros(1, self.cfg.pe_dims)   # [1, D_pe]
-            V = torch.zeros(n, self.cfg.pe_dims)        # [N, D_pe]
-
-            #d = min(n - 1, self.cfg.pe_dims)   # number of eigen-pairs to use (then we zero-pad up to D_pe)
-            d = min(n, self.cfg.pe_dims)   # number of eigen-pairs to use (then we zero-pad up to D_pe)
-            eigenvalues, eigenvectors = torch.linalg.eigh(L)   # [N], [N, N]
-            #Lambda[0, :d] = eigenvalues[1:d + 1]
-            #V[:, :d] = eigenvectors[:, 1:d + 1]
-            Lambda[0, :d] = eigenvalues[0:d]
-            V[:, :d] = eigenvectors[:, 0:d]
-
-            instance.update({"Lambda": Lambda, "V": V})
-
         return instance
 
     def get_param_groups(self) -> List[Dict[str, Any]]:
@@ -389,21 +327,6 @@ class Trainer:
 #        else:
 #            return max(0.0, (self.n_total_steps - curr_step) / max(1, self.n_total_steps - self.cfg.n_warmup_steps))
         return 1.
-
-    def get_degree(self, train_dataset):
-        # reference: https://github.com/pyg-team/pytorch_geometric/blob/master/examples/pna.py
-        # Compute the maximum in-degree in the training data.
-        max_degree = -1
-        for data in train_dataset:
-            d = degree(data.edge_index[1], num_nodes=data.num_nodes, dtype=torch.long)
-            max_degree = max(max_degree, int(d.max()))
-
-        # Compute the in-degree histogram tensor
-        deg = torch.zeros(max_degree + 1, dtype=torch.long)
-        for data in train_dataset:
-            d = degree(data.edge_index[1], num_nodes=data.num_nodes, dtype=torch.long)
-            deg += torch.bincount(d, minlength=deg.numel())
-        return deg
 
 
 def set_seed(seed: int) -> None:
