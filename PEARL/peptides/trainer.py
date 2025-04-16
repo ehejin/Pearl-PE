@@ -90,21 +90,21 @@ class Trainer:
     curr_epoch: int
     curr_batch: int
 
-    def __init__(self, cfg: Schema, gpu_id: Optional[int]) -> None:
+    def __init__(self, cfg: Schema, gpu_id: Optional[int], splits=10) -> None:
         set_seed(cfg.seed)
         self.seed = cfg.seed
 
         self.cfg = cfg
+        self.splits = splits
         cfg.out_dirpath = root(cfg.out_dirpath)
 
         processed_suffix = '_pe' + str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
         transform = self.get_lap
-        print('Loading OGB molHIV dataset...')
+        print('Loading peptides dataset...')
 
         dataset = PeptidesStructuralDataset(root='dataset', transform = self.get_lap)
         split_idx = dataset.get_idx_split()
         train_dataset, val_dataset, test_dataset = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]
-        #train_dataset.transform, val_dataset.transform, test_dataset.transform = transform_train, transform_eval, transform_eval
 
         self.train_loader = DataLoader(train_dataset, batch_size=cfg.train_batch_size, shuffle=True, num_workers=3)
         self.val_loader = DataLoader(val_dataset, batch_size=cfg.val_batch_size, shuffle=False, num_workers=0)
@@ -120,7 +120,7 @@ class Trainer:
         kwargs["feature_type"] = "discrete"
         self.device = torch.device(f'cuda:{gpu_id}')
         # self.model = construct_model(cfg, self.create_mlp, **kwargs)
-        self.model = construct_model(cfg, (self.create_mlp, self.create_mlp_ln), **kwargs)
+        self.model = construct_model(cfg, (self.create_mlp, self.create_mlp_ln), peptides=True, **kwargs)
         self.model.to("cpu" if gpu_id is None else f"cuda:{gpu_id}")
 
         # Construct auxiliary training objects
@@ -202,32 +202,27 @@ class Trainer:
         return total_loss / len(self.train_loader.dataset)
 
     
-    def train_batch(self, batch: Batch, splits=10) -> float:
+    def train_batch(self, batch: Batch) -> float:
         batch.to(device(self.model))
         self.optimizer.zero_grad()
-        for k in range(splits):
+        for k in range(self.splits):
             W_list = []
             for i in range(len(batch.Lap)):
                 if self.basis:
                     W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
                 else:
-                    W = torch.randn(batch.Lap[i].shape[0],self.num_samples // 10).to(self.device) #BxNxM
+                    W = torch.randn(batch.Lap[i].shape[0],self.num_samples // self.splits).to(self.device) #BxNxM
                 if len(W.shape) < 2:
                     print("TRAIN BATCH, i, LAP|W: ", i, batch.Lap[i].shape, W.shape)
                 W_list.append(W)
             self.model.forward(batch, W_list, final=False) 
-            if k == 9:
+            if k == self.splits-1:
                 y_pred = self.model(batch, W_list, final=True)               # [B]
         loss = self.criterion(y_pred, batch.y)   # [1]
         loss.backward()
         self.optimizer.step()
 
         loss = loss.item()
-        # lr = self.scheduler.get_last_lr()[0]
-        # self.logger.info("Training... Epoch: {}, batch: {}, loss: {:.6f}, lr: {:.6e}"
-        #        .format(self.curr_epoch, self.curr_batch, loss, lr))
-        # wandb.log({"train_loss": loss, "lr": lr})
-
         self.scheduler.step()
 
         return loss * batch.y.size(0)
@@ -243,25 +238,24 @@ class Trainer:
 
         self.val_writer.write(f"Epoch: {self.curr_epoch}\t Loss: {total_loss}\n")
         self.val_writer.flush()
-        # wandb.log({"val_loss": total_loss})
         return total_loss
 
-    def evaluate_batch(self, batch: Batch, splits=10) -> float:
+    def evaluate_batch(self, batch: Batch) -> float:
         batch.to(device(self.model))
         W_list = []
-        for k in range(splits):
+        for k in range(self.splits):
             W_list = []
             for i in range(len(batch.Lap)):
                 if self.basis:
                     W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
                 else:
-                    W = torch.randn(batch.Lap[i].shape[0],self.num_samples // 10).to(self.device) #BxNxM
+                    W = torch.randn(batch.Lap[i].shape[0],self.num_samples // self.splits).to(self.device) #BxNxM
                 if len(W.shape) < 2:
                     print("TRAIN BATCH, i, LAP|W: ", i, batch.Lap[i].shape, W.shape)
                 W_list.append(W)
             with torch.no_grad():
                 self.model.forward(batch, W_list, final=False) 
-            if k == 9:
+            if k == self.splits-1:
                 with torch.no_grad():
                     y_pred = self.model(batch, W_list, final=True)
         return self.metric(y_pred, batch.y).item()

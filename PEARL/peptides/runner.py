@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--subset_size", type=int, default=-1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_seeds", type=bool, default=4)
+    parser.add_argument("--num_sample_splits", type=int, default=10)
     args = parser.parse_args()
 
     cs = ConfigStore.instance()
@@ -35,7 +36,7 @@ def main() -> None:
     total_test_loss = 0
     for i in range(args.num_seeds):
         cfg.seed = args.seed + i
-        trainer = Trainer(cfg, args.gpu_id)
+        trainer = Trainer(cfg, args.gpu_id, splits=args.num_sample_splits)
         test_loss_best = trainer.train(cfg.seed)
         total_test_loss += test_loss_best
         

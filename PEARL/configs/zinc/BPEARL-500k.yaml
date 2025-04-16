@@ -25,6 +25,7 @@ mlp_use_bn: true
 mlp_use_ln: false
 mlp_activation: relu
 mlp_dropout_prob: 0.0
+pe_aggregate: add
 
 residual: true
 graph_norm: false 

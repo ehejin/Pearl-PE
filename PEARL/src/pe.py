@@ -94,7 +94,6 @@ class PEARLPositionalEncoder(nn.Module):
         W_list = []
         # for loop N times for each Nx1 e
         if isinstance(W[0], int):
-            print("WRONG INSTANCE")
             # split into N*B*[Nx1]
             j = 0
             for lap, w in zip(Lap, W):
@@ -178,6 +177,6 @@ class GINSampleAggregator(nn.Module):
 def GetSampleAggregator(cfg: Schema, create_mlp: Callable[[int, int], MLP], device):
     if cfg.sample_aggr_model_name == 'gin':
         return GINSampleAggregator(cfg.n_sample_aggr_layers, cfg.pearl_mlp_out, cfg.sample_aggr_hidden_dims, cfg.pe_dims,
-                                         create_mlp, cfg.batch_norm, RAND_LAP=None)
+                                         create_mlp, cfg.batch_norm)
     else:
         raise Exception ("sample_aggr function not implemented!")

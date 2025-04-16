@@ -7,7 +7,7 @@ from torch_geometric.nn import MessagePassing
 
 from src.mlp import MLP
 
-# This code is from:
+# This code is adapted from:
 # https://github.com/Graph-COM/SPE/blob/master/src/gine.py 
 
 class GINE(nn.Module):
@@ -15,7 +15,8 @@ class GINE(nn.Module):
 
     def __init__(
         self, n_layers: int, n_edge_types: int, in_dims: int, hidden_dims: int, out_dims: int,
-        create_mlp: Callable[[int, int], MLP], bn: bool = False, residual: bool = False, feature_type: str = "discrete", pe_emb=37
+        create_mlp: Callable[[int, int], MLP], bn: bool = False, residual: bool = False, feature_type: str = "discrete", pe_emb=37,
+        bond_encoder=False
     ) -> None:
         super().__init__()
         self.layers = nn.ModuleList()
@@ -24,13 +25,13 @@ class GINE(nn.Module):
         if bn:
             self.batch_norms = nn.ModuleList()
         for _ in range(n_layers - 1):
-            layer = GINELayer(n_edge_types, in_dims, hidden_dims, create_mlp, feature_type, pe_emb=pe_emb)
+            layer = GINELayer(n_edge_types, in_dims, hidden_dims, create_mlp, feature_type, pe_emb=pe_emb, bond_encoder=bond_encoder)
             self.layers.append(layer)
             in_dims = hidden_dims
             if bn:
                 self.batch_norms.append(nn.BatchNorm1d(hidden_dims))
 
-        layer = GINELayer(n_edge_types, hidden_dims, out_dims, create_mlp, feature_type, pe_emb=pe_emb)
+        layer = GINELayer(n_edge_types, hidden_dims, out_dims, create_mlp, feature_type, pe_emb=pe_emb, bond_encoder=bond_encoder)
         self.layers.append(layer)
 
     def forward(self, X_n: torch.Tensor, edge_index: torch.Tensor, edge_attr: torch.Tensor, PE: torch.Tensor) -> torch.Tensor:
@@ -60,14 +61,15 @@ class GINELayer(MessagePassing):
     mlp: MLP
 
     def __init__(self, n_edge_types: int, in_dims: int, out_dims: int, create_mlp: Callable[[int, int], MLP],
-                 feature_type: str = "discrete", pe_emb=37) -> None:
+                 feature_type: str = "discrete", pe_emb=37, bond_encoder=False) -> None:
         # Use node_dim=0 because message() output has shape [E_sum, D_in] - https://stackoverflow.com/a/68931962
         super().__init__(aggr="add", flow="source_to_target", node_dim=0)
         # super(GINELayer, self).__init__(aggr='add')
-
-        self.edge_features = nn.Embedding(n_edge_types+1, in_dims) if feature_type == "discrete" else \
+        if bond_encoder:    
+            self.edge_features = BondEncoder(emb_dim=in_dims)
+        else:
+            self.edge_features = nn.Embedding(n_edge_types+1, in_dims) if feature_type == "discrete" else \
                             nn.Linear(n_edge_types, in_dims)
-        #self.edge_features = BondEncoder(emb_dim=in_dims)
         # self.pe_embedding = nn.Linear(1, in_dims)
         self.pe_embedding = create_mlp(pe_emb, in_dims) # for pe-full
         self.eps = torch.nn.Parameter(data=torch.randn(1), requires_grad=True)

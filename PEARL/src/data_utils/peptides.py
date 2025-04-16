@@ -62,7 +62,7 @@ class PeptidesStructuralDataset(InMemoryDataset):
                 shutil.rmtree(self.folder)
 
         super().__init__(self.folder, transform, pre_transform)
-        self.data, self.slices = torch.load(self.processed_paths[0])
+        self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
     def raw_file_names(self):

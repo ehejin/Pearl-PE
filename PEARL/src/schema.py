@@ -27,6 +27,7 @@ class Schema:
     mlp_use_ln: bool
     mlp_activation: str
     mlp_dropout_prob: float
+    pe_aggregate: str
 
     residual: bool
     batch_norm: bool
