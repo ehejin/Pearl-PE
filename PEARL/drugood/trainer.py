@@ -38,24 +38,16 @@ class Trainer:
     curr_epoch: int
     curr_batch: int
 
-    def __init__(self, cfg: Schema, gpu_id: Optional[int], signnet: bool, rgnn: bool) -> None:
+    def __init__(self, cfg: Schema, gpu_id: Optional[int]) -> None:
         set_seed(cfg.seed)
 
         # Initialize configuration
         self.cfg = cfg
         cfg.out_dirpath = root(cfg.out_dirpath)
-        self.signnet = signnet
-        self.rgnn = rgnn
-        print("RGNN IS", rgnn)
 
         # Construct data loaders
         ## dataset preprocessing (before saved in disk) and loading
-        if self.rgnn is True:
-            processed_suffix = '_pe'+str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
-        elif not self.rgnn and not self.signnet:
-            processed_suffix = '_pearl'+str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
-        else:
-            processed_suffix = '_OG_pe'+str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
+        processed_suffix = '_pearl'+str(cfg.pe_dims) if cfg.pe_method != 'none' else ''
         transform = self.get_lap
         curator = "lbap_core_ic50_"+cfg.dataset
         data_root = root(os.path.join("data/drugood", curator)) # use your own data root
@@ -83,17 +75,13 @@ class Trainer:
         kwargs["bn"] = cfg.batch_norm
         kwargs["sn"] = cfg.graph_norm
         kwargs["feature_type"] = "continuous"
-        self.model = construct_model(cfg, (self.create_mlp, self.create_mlp_ln), rgnn=self.rgnn, **kwargs)
+        self.model = construct_model(cfg, (self.create_mlp, self.create_mlp_ln), **kwargs)
         print(self.model)
         self.model.to("cpu" if gpu_id is None else f"cuda:{gpu_id}")
 
-        # Construct auxiliary training objects
         param_groups = self.get_param_groups()
-        # self.optimizer = optim.SGD(param_groups, lr=cfg.lr, momentum=cfg.momentum, nesterov=cfg.nesterov)
-        # I generally find Adam is better than SGD
         self.optimizer = optim.Adam(param_groups, lr=cfg.lr, weight_decay=cfg.weight_decay)
         self.scheduler = LambdaLR(self.optimizer, self.lr_lambda)
-        # self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', factor=0.5, patience=25)
         self.criterion = nn.BCEWithLogitsLoss(reduction="none")
         self.metric = BinaryAUROC()
 
@@ -121,15 +109,11 @@ class Trainer:
         # Miscellaneous
         self.curr_epoch = 1
         self.curr_batch = 1
-        self.BASIS = cfg.BASIS
+        self.basis = cfg.basis
         self.num_samples = cfg.num_samples
         self.seed = cfg.seed
 
     def train(self) -> None:
-        # load model
-        # self.model.load_state_dict(torch.load("./masked_sign_inv_32_ood.pt", map_location='cuda:0'))
-        # self.model.load_state_dict(torch.load("./spe_32_ood.pt", map_location='cuda:0'))
-
         self.logger.info("Configuration:\n" + OmegaConf.to_yaml(self.cfg))
         self.logger.info(f"Total parameters: {sum(param.numel() for param in self.model.parameters())}")
         self.logger.info(f"Total training steps: {self.n_total_steps}")
@@ -169,69 +153,22 @@ class Trainer:
     def train_batch(self, batch: Batch) -> float:
         batch.to(device(self.model))
         self.optimizer.zero_grad()
-
-        if not self.signnet:
-            W_list = []
-            for i in range(len(batch.Lap)):
-                if self.BASIS:
-                    W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
-                else:
-                    W = torch.randn(batch.Lap[i].shape[0],self.num_samples).to(self.device) #BxNxM
-                if len(W.shape) < 2:
-                    print("TRAIN BATCH, i, LAP|W: ", i, batch.Lap[i].shape, W.shape)
-                W_list.append(W)
-            y_pred = self.model(batch, W_list)
-            loss = self.criterion(y_pred, batch.y)
-
-
-            #y_pred = self.model(batch)               # [B]
-    #        if self.cfg.class_weight:
-    #            n_ratio = (batch.y == 0).float().mean()
-    #            weight = batch.y * 2 * n_ratio + (batch.y - 1).abs() * 2 * (1 - n_ratio)
-    #            loss = loss * weight
-            loss = loss.mean()
-            loss.backward()
-            self.optimizer.step()
-
-            loss = loss.item()
-            # lr = self.scheduler.get_last_lr()[0]
-            # self.logger.info("Training... Epoch: {}, batch: {}, loss: {:.6f}, lr: {:.6e}"
-            #        .format(self.curr_epoch, self.curr_batch, loss, lr))
-            # wandb.log({"train_loss": loss, "lr": lr})
-
-            self.scheduler.step()
-
-        elif self.rgnn:
-            r = (1 + torch.randn(batch.x.shape[0], 80, 1)).to(device(self.model))
-            y_pred = self.model(batch, r)              
-            loss = self.criterion(y_pred, batch.y)   
-            loss = loss.mean()
-            loss.backward()
-            self.optimizer.step()
-
-            loss = loss.item()
-
-            self.scheduler.step()
-
-        else:
-            y_pred = self.model(batch)               # [B]
-            loss = self.criterion(y_pred, batch.y)   # [1]
-    #        if self.cfg.class_weight:
-    #            n_ratio = (batch.y == 0).float().mean()
-    #            weight = batch.y * 2 * n_ratio + (batch.y - 1).abs() * 2 * (1 - n_ratio)
-    #            loss = loss * weight
-            loss = loss.mean()
-            loss.backward()
-            self.optimizer.step()
-
-            loss = loss.item()
-            # lr = self.scheduler.get_last_lr()[0]
-            # self.logger.info("Training... Epoch: {}, batch: {}, loss: {:.6f}, lr: {:.6e}"
-            #        .format(self.curr_epoch, self.curr_batch, loss, lr))
-            # wandb.log({"train_loss": loss, "lr": lr})
-
-            self.scheduler.step()
-
+        W_list = []
+        for i in range(len(batch.Lap)):
+            if self.basis:
+                W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
+            else:
+                W = torch.randn(batch.Lap[i].shape[0],self.num_samples).to(self.device) #BxNxM
+            if len(W.shape) < 2:
+                print("TRAIN BATCH, i, LAP|W: ", i, batch.Lap[i].shape, W.shape)
+            W_list.append(W)
+        y_pred = self.model(batch, W_list)
+        loss = self.criterion(y_pred, batch.y)
+        loss = loss.mean()
+        loss.backward()
+        self.optimizer.step()
+        loss = loss.item()
+        self.scheduler.step()
         return loss * batch.y.size(0)
 
     def evaluate(self, eval_loader: DataLoader) -> float:
@@ -249,35 +186,20 @@ class Trainer:
         return total_loss
 
     def evaluate_batch(self, batch: Batch):
-        if not self.signnet:
-            batch.to(device(self.model))
+        batch.to(device(self.model))
 
-            W_list = []
-            for i in range(len(batch.Lap)):
-                if self.BASIS:
-                    W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
-                else:
-                    W = torch.randn(batch.Lap[i].shape[0],self.num_samples).to(self.device) #BxNxM
-                if len(W.shape) < 2:
-                    print("EVAL BATCH, i, LAP|W: ", i, batch.Lap[i].shape, W.shape)
-                W_list.append(W)
-
-
-            with torch.no_grad():
-                y_pred = torch.nn.Sigmoid()(self.model(batch, W_list))
-                self.metric.update(y_pred, batch.y)
-        elif self.rgnn:
-            batch.to(device(self.model))
-            r = (1 + torch.randn(batch.x.shape[0], 80, 1)).to(device(self.model))
-            with torch.no_grad():
-                y_pred = torch.nn.Sigmoid()(self.model(batch, r))
-                self.metric.update(y_pred, batch.y)
-
-        else:
-            batch.to(device(self.model))
-            with torch.no_grad():
-                y_pred = torch.nn.Sigmoid()(self.model(batch))
-                self.metric.update(y_pred, batch.y)
+        W_list = []
+        for i in range(len(batch.Lap)):
+            if self.basis:
+                W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
+            else:
+                W = torch.randn(batch.Lap[i].shape[0],self.num_samples).to(self.device) #BxNxM
+            if len(W.shape) < 2:
+                print("EVAL BATCH, i, LAP|W: ", i, batch.Lap[i].shape, W.shape)
+            W_list.append(W)
+        with torch.no_grad():
+            y_pred = torch.nn.Sigmoid()(self.model(batch, W_list))
+            self.metric.update(y_pred, batch.y)
 
     @property
     def n_total_steps(self) -> int:
@@ -294,21 +216,12 @@ class Trainer:
             self.cfg.n_mlp_layers, in_dims, self.cfg.mlp_hidden_dims, out_dims, self.cfg.mlp_use_ln,
             self.cfg.mlp_activation, self.cfg.mlp_dropout_prob, norm_type="layer"
         )
-        '''return MLP(
-            self.cfg.n_mlp_layers, in_dims, self.cfg.mlp_hidden_dims, out_dims, self.cfg.mlp_use_ln,
-            self.cfg.RAND_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
-        )'''
 
     def get_lap(self, instance: Data) -> Data:
-        if not self.signnet and not self.rgnn:
-            n = instance.num_nodes
-            L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
-            L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)
-            instance.Lap = L
-        else:
-            size = instance.num_nodes
-            snorm = torch.FloatTensor(size, 1).fill_(1./float(size)).sqrt()
-            instance.update({"snorm": snorm})
+        n = instance.num_nodes
+        L_edge_index, L_values = get_laplacian(instance.edge_index, normalization="sym", num_nodes=n)   # [2, X], [X]
+        L = to_dense_adj(L_edge_index, edge_attr=L_values, max_num_nodes=n).squeeze(dim=0)
+        instance.Lap = L
         return instance
 
     def get_param_groups(self) -> List[Dict[str, Any]]:
@@ -322,10 +235,6 @@ class Trainer:
         """
         Based on https://github.com/huggingface/transformers/blob/v4.28.1/src/transformers/optimization.py#L79
         """
-#        if curr_step < self.cfg.n_warmup_steps:
-#            return curr_step / max(1, self.cfg.n_warmup_steps)
-#        else:
-#            return max(0.0, (self.n_total_steps - curr_step) / max(1, self.n_total_steps - self.cfg.n_warmup_steps))
         return 1.
 
 

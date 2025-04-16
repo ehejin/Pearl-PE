@@ -4,6 +4,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+# This code is adapted from:
+# https://github.com/Graph-COM/SPE/blob/master/src/mlp.py 
 
 class SwiGLU(nn.Module):
     def __init__(self, input_dim):

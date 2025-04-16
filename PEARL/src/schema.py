@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+# This code is adapted from:
+# https://github.com/Graph-COM/SPE/blob/master/src/schema.py 
 
 @dataclass
 class Schema:
@@ -11,18 +13,10 @@ class Schema:
     node_emb_dims: int
     pooling: str
 
-
-    phi_model_name: str
+    sample_aggr_model_name: str
     pe_dims: int
-    n_phi_layers: int
-    phi_hidden_dims: int
-    psi_model_name: str
-    n_psis: int
-    n_psi_layers: int
-    psi_hidden_dims: int
-    psi_activation: str
-    num_heads: int # for transformers
-    pe_aggregate: str
+    n_sample_aggr_layers: int
+    sample_aggr_hidden_dims: int
 
     n_base_layers: int
     base_hidden_dims: int
@@ -56,15 +50,17 @@ class Schema:
     # miscellaneous
     n_epochs: int
     out_dirpath: str
-    BASIS: bool    # IF TRUE will run using basis vectors, otherwise will use random samples
-    num_samples: int
-    RAND_k: int
-    RAND_mlp_nlayers: int
-    RAND_mlp_hid: int
+
+    # PEARL PE model attributes
+    basis: bool    # If TRUE will run using basis vectors, otherwise will use random samples
+    num_samples: int  # number of random samples (only used if basis is false)
+    pearl_k: int  # number of graph filters to apply
+    pearl_mlp_nlayers: int  # number of mlp layers after graph filtering and before the sample aggr
+    pearl_mlp_hid: int # hidden size of mlp after graph filtering
     wandb: bool
     wandb_run_name: str
-    RAND_act: str
-    RAND_LAP: str
-    RAND_mlp_out: int
+    pearl_act: str # activation of mlp after graph filtering
+    pearl_mlp_out: int # output size of mlp after graph filters
+    
     gine_model_bn: bool
     target_dim: int

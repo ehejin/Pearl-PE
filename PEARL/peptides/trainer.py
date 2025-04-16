@@ -125,11 +125,8 @@ class Trainer:
 
         # Construct auxiliary training objects
         param_groups = self.get_param_groups()
-        # self.optimizer = optim.SGD(param_groups, lr=cfg.lr, momentum=cfg.momentum, nesterov=cfg.nesterov)
-        # I generally find Adam is better than SGD
         self.optimizer = optim.Adam(param_groups, lr=cfg.lr, weight_decay=cfg.weight_decay)
         self.scheduler = LambdaLR(self.optimizer, self.lr_lambda)
-        # self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', factor=0.5, patience=25)
         self.criterion = nn.L1Loss(reduction="mean")
         self.metric = nn.L1Loss(reduction="mean")
 
@@ -154,7 +151,9 @@ class Trainer:
         # Miscellaneous
         self.curr_epoch = 1
         self.curr_batch = 1
-        self.BASIS = cfg.BASIS
+
+        # PEARL setup
+        self.basis = cfg.basis
         self.num_samples = cfg.num_samples
 
 
@@ -203,13 +202,13 @@ class Trainer:
         return total_loss / len(self.train_loader.dataset)
 
     
-    def train_batch(self, batch: Batch) -> float:
+    def train_batch(self, batch: Batch, splits=10) -> float:
         batch.to(device(self.model))
         self.optimizer.zero_grad()
-        for k in range(10):
+        for k in range(splits):
             W_list = []
             for i in range(len(batch.Lap)):
-                if self.BASIS:
+                if self.basis:
                     W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
                 else:
                     W = torch.randn(batch.Lap[i].shape[0],self.num_samples // 10).to(self.device) #BxNxM
@@ -247,13 +246,13 @@ class Trainer:
         # wandb.log({"val_loss": total_loss})
         return total_loss
 
-    def evaluate_batch(self, batch: Batch) -> float:
+    def evaluate_batch(self, batch: Batch, splits=10) -> float:
         batch.to(device(self.model))
         W_list = []
-        for k in range(10):
+        for k in range(splits):
             W_list = []
             for i in range(len(batch.Lap)):
-                if self.BASIS:
+                if self.basis:
                     W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
                 else:
                     W = torch.randn(batch.Lap[i].shape[0],self.num_samples // 10).to(self.device) #BxNxM
@@ -285,7 +284,7 @@ class Trainer:
     def create_mlp_ln(self, in_dims: int, out_dims: int, use_bias=True) -> MLP:
         return MLP(
             self.cfg.n_mlp_layers, in_dims, self.cfg.mlp_hidden_dims, out_dims, self.cfg.mlp_use_ln,
-            self.cfg.RAND_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
+            self.cfg.pearl_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
         )
 
     def get_lap(self, instance: Data) -> Data:

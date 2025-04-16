@@ -5,24 +5,16 @@ defaults:
 # model attributes
 base_model: gine
 pe_method: pearl
-n_node_types: 39   # based on https://github.com/pyg-team/pytorch_geometric/files/7494194/README.txt
+n_node_types: 39  
 n_edge_types: 10
 node_emb_dims: 64
 pooling: None
 
 
-phi_model_name: gin
-pe_dims: 32   # based on SignNet and BasisNet paper (Table 1)
-n_phi_layers: 3
-phi_hidden_dims: 64
-
-psi_model_name: mlp
-n_psis: 16
-n_psi_layers: 3
-psi_hidden_dims: 16
-psi_activation: relu
-num_heads: 4
-pe_aggregate: concat
+sample_aggr_model_name: gin
+pe_dims: 32   
+n_sample_aggr_layers: 3
+sample_aggr_hidden_dims: 64
 
 n_base_layers: 4
 base_hidden_dims: 64
@@ -49,16 +41,15 @@ weight_decay: 1e-4
 momentum: 0.9
 nesterov: false
 
-BASIS: false
+basis: false
 num_samples: 200
-RAND_k: 16
-RAND_mlp_nlayers: 1
-RAND_mlp_hid: 32
+pearl_k: 16
+pearl_mlp_nlayers: 1
+pearl_mlp_hid: 32
 wandb: True
 wandb_run_name: DrugOOD-SIZE
-RAND_act: relu
-RAND_LAP: None
-RAND_mlp_out: 32
+pearl_act: relu
+pearl_mlp_out: 32
 gine_model_bn: False
 
 # scheduler attributes

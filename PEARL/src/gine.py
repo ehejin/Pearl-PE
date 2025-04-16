@@ -7,6 +7,8 @@ from torch_geometric.nn import MessagePassing
 
 from src.mlp import MLP
 
+# This code is from:
+# https://github.com/Graph-COM/SPE/blob/master/src/gine.py 
 
 class GINE(nn.Module):
     layers: nn.ModuleList

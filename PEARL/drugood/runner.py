@@ -20,8 +20,6 @@ def main() -> None:
     parser.add_argument("--subset_size", type=int, default=-1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--dataset", type=str)
-    parser.add_argument("--signnet", type=bool, default=False)
-    parser.add_argument("--rgnn", type=bool, default=False)
     args = parser.parse_args()
 
     cs = ConfigStore.instance()
@@ -37,11 +35,10 @@ def main() -> None:
         wandb.init(dir=root("."), project="PEARL-drugood", name=cfg.wandb_run_name, config=cfg.__dict__,
                    settings=wandb.Settings(code_dir="."))
 
-
     for i in [0, 1, 2, 4, 42]:
         cfg.seed = i
         cfg.dataset = args.dataset
-        trainer = Trainer(cfg, args.gpu_id, signnet=args.signnet, rgnn=args.rgnn)
+        trainer = Trainer(cfg, args.gpu_id)
         trainer.train()
 
 if __name__ == "__main__":

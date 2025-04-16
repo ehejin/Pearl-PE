@@ -18,7 +18,7 @@ from torch_geometric.nn import BatchNorm, global_mean_pool
 # This code is adapted from:
 # https://github.com/Graph-COM/SPE/blob/master/src/model.py 
 
-def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs): 
+def construct_model(cfg: Schema, list_create_mlp, deg1=None, **kwargs): 
     create_mlp, create_mlp_ln = list_create_mlp if isinstance(list_create_mlp, tuple) else (list_create_mlp, list_create_mlp)
     target_dim = cfg.target_dim
     if cfg.base_model == 'gine':
@@ -30,8 +30,8 @@ def construct_model(cfg: Schema, list_create_mlp, rgnn=True, deg1=None, **kwargs
     else:
         raise Exception("Base model not implemented!")
     if cfg.pe_method == 'pearl':
-        Phi = GetSampleAggregator(cfg, create_mlp_ln, kwargs['device']) 
-        pe_model = PEARLPositionalEncoder(Phi, cfg.BASIS, k=cfg.RAND_k, mlp_nlayers=cfg.RAND_mlp_nlayers, mlp_hid=cfg.RAND_mlp_hid, pearl_act=cfg.RAND_act, mlp_out=cfg.RAND_mlp_out)
+        sample_aggr = GetSampleAggregator(cfg, create_mlp_ln, kwargs['device']) 
+        pe_model = PEARLPositionalEncoder(sample_aggr, cfg.basis, k=cfg.pearl_k, mlp_nlayers=cfg.pearl_mlp_nlayers, mlp_hid=cfg.pearl_mlp_hid, pearl_act=cfg.pearl_act, mlp_out=cfg.pearl_mlp_out)
         return PEARL_GNN_Model(
             cfg.n_node_types, cfg.node_emb_dims,
             positional_encoding=pe_model,
@@ -66,11 +66,11 @@ class PEARL_GNN_Model(nn.Module):
             if pe_aggregate == "concat":
                 self.fc = nn.Linear(2 * node_emb_dims, node_emb_dims, bias=True)
 
-    def forward(self, batch: Batch, W) -> torch.Tensor:
+    def forward(self, batch: Batch, W, final=True) -> torch.Tensor:
         X_n = self.node_features(batch.x.squeeze(dim=1)) 
         PE = None
         if self.positional_encoding is not None:
-            PE = self.positional_encoding(batch.Lap, W, batch.edge_index, batch.batch)  
+            PE = self.positional_encoding(batch.Lap, W, batch.edge_index, batch.batch, final)  
             if self.pe_aggregate == "add":
                 X_n = X_n + self.pe_embedding(PE)
             elif self.pe_aggregate == "concat":

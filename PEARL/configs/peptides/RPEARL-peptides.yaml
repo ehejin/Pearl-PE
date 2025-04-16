@@ -10,18 +10,10 @@ n_edge_types: 3
 node_emb_dims: 135
 pooling: add
 
-phi_model_name: gin
+sample_aggr_model_name: gin
 pe_dims: 37
-n_phi_layers: 9
-phi_hidden_dims: 37
-
-psi_model_name: mlp
-n_psis: 16
-n_psi_layers: 3
-psi_hidden_dims: 16
-psi_activation: relu
-num_heads: 4
-pe_aggregate: add
+n_sample_aggr_layers: 9
+sample_aggr_hidden_dims: 37
 
 n_base_layers: 6
 base_hidden_dims: 135
@@ -42,14 +34,13 @@ use_subset: true
 train_batch_size: 50
 val_batch_size: 50
 
-BASIS: false
+basis: false
 num_samples: 200
-RAND_k: 4
-RAND_mlp_nlayers: 1
-RAND_mlp_hid: 37
-RAND_mlp_out: 37
-RAND_act: relu
-RAND_LAP: None
+pearl_k: 4
+pearl_mlp_nlayers: 1
+pearl_mlp_hid: 37
+pearl_mlp_out: 37
+pearl_act: relu
 
 lr: 0.001
 weight_decay: 0.000003

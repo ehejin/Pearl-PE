@@ -5,7 +5,6 @@ from torch_geometric.data import Data
 # https://github.com/Graph-COM/SPE/blob/master/src/data_utils/batch.py 
 
 class Batch(Data):
-    # used to handle BasisNet features
     r"""A plain old python object modeling a batch of graphs as one big
     (dicconnected) graph. With :class:`torch_geometric.data.Data` being the
     base class, all its methods can also be used here.

@@ -133,7 +133,7 @@ class Trainer:
         # Miscellaneous
         self.curr_epoch = 1
         self.curr_batch = 1
-        self.BASIS = cfg.BASIS
+        self.basis = cfg.basis
         self.num_samples = cfg.num_samples
 
 
@@ -186,7 +186,7 @@ class Trainer:
         self.optimizer.zero_grad()
         W_list = []
         for i in range(len(batch.Lap)):
-            if self.BASIS:
+            if self.basis:
                 W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
             else:
                 W = torch.randn(batch.Lap[i].shape[0],self.num_samples).to(self.device) #BxNxM
@@ -222,7 +222,7 @@ class Trainer:
         batch.to(device(self.model))
         W_list = []
         for i in range(len(batch.Lap)):
-            if self.BASIS:
+            if self.basis:
                 W = torch.eye(batch.Lap[i].shape[0]).to(self.device)
             else:
                 W = torch.randn(batch.Lap[i].shape[0],self.num_samples).to(self.device) #BxNxM
@@ -246,7 +246,7 @@ class Trainer:
     def create_mlp_ln(self, in_dims: int, out_dims: int, use_bias=True) -> MLP:
         return MLP(
             self.cfg.n_mlp_layers, in_dims, self.cfg.mlp_hidden_dims, out_dims, self.cfg.mlp_use_ln,
-            self.cfg.RAND_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
+            self.cfg.pearl_act, self.cfg.mlp_dropout_prob, norm_type="layer", NEW_BATCH_NORM=True, use_bias=use_bias
         )
 
     def get_lap(self, instance: Data) -> Data:

@@ -6,6 +6,9 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import get_laplacian, to_dense_adj , degree
 from src.mlp import MLP
 
+# This code is from:
+# https://github.com/Graph-COM/SPE/blob/master/src/gin.py 
+
 class GIN(nn.Module):
     layers: nn.ModuleList
 
@@ -29,7 +32,6 @@ class GIN(nn.Module):
         layer = GINLayer(create_mlp(hidden_dims, out_dims))
         self.layers.append(layer)
         self.laplacian=laplacian
-        print("GINPHI LAP is: ", laplacian)
 
     def forward(self, X: torch.Tensor, edge_index: torch.Tensor, mask=None) -> torch.Tensor:
         """
