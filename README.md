@@ -28,6 +28,6 @@ pip install pyg-lib torch-geometric torch-scatter torch-sparse torch-cluster tor
   -f https://data.pyg.org/whl/torch-$TORCH+$CUDA.html
 ```
 
-### Dependencies and Attribution
+### Attribution
 This project builds upon code from the SignNet, SPE, and RelBench repositories. We have modified and extended components from these frameworks for our use.
 We use the [[SignNet repo](https://github.com/cptq/SignNet-BasisNet)] by Lim et al., 2022, the [[SPE repo](https://github.com/Graph-COM/SPE)] by Huang et al., 2024, and the [[RelBench repo](https://github.com/snap-stanford/relbench)] by Robinson et al., 2024.
