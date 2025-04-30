@@ -6,6 +6,8 @@ By Charilaos Kanatsoulis, Evelyn Choi, Stefanie Jegelka, Jure Leskovec, Alejandr
 ## Overview
 This repository contains the official implementation and experiment code for the paper, **"Learning Efficient Positional Encodings with GNNs"**. 
 
+For questions, please contact us [here](mailto:echoi1@stanford.edu).
+
 ### Experiments
 * Instructions and experiments for PEARL on the ZINC, DrugOOD, and Peptides datasets can be found in PEARL/configs.
 * Experiments for PEARL on the REDDIT datasets can be found in Pearl-Reddit.
